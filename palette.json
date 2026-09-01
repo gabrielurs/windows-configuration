@@ -2,39 +2,117 @@
   "name": "Claude CLI",
   "description": "Paleta del tema Terminal de Claude Code, llevada a zsh, Windows Terminal, PowerShell, VS Code y el acento de Windows.",
   "surfaces": {
-    "bg":        "#07090A",
-    "bgAlt":     "#0A0D0F",
-    "bgPanel":   "#161C21",
-    "border":    "#1A2026",
-    "fg":        "#C9D1D9",
-    "fgDim":     "#7D8894",
+    "bg": "#07090A",
+    "bgAlt": "#0A0D0F",
+    "bgPanel": "#161C21",
+    "border": "#1A2026",
+    "fg": "#C9D1D9",
+    "fgDim": "#7D8894",
     "selection": "#16323A",
-    "ghost":     "#3A444E"
+    "ghost": "#3A444E"
   },
   "roles": {
-    "teal":   { "hex": "#4DD6C1", "bright": "#7FE8DA", "uso": "rutas, ficheros, tablas, repos" },
-    "green":  { "hex": "#57E389", "bright": "#89EBAC", "uso": "identificadores, código inline, altas" },
-    "blue":   { "hex": "#6FB6FF", "bright": "#9ACCFF", "uso": "urls, ramas, enlaces" },
-    "amber":  { "hex": "#E8C46A", "bright": "#EFD697", "uso": "números, dinero, métricas, avisos" },
-    "purple": { "hex": "#B07CF0", "bright": "#C8A3F4", "uso": "modos y ajustes del propio CLI" },
-    "red":    { "hex": "#F2777A", "bright": "#F6A0A2", "uso": "bajas, errores, riesgo" },
-    "white":  { "hex": "#ECEFF4", "bright": "#FFFFFF", "uso": "énfasis en prosa" },
-    "grey":   { "hex": "#6B7683", "bright": "#8D99A6", "uso": "flechas, separadores, unidades" },
-    "orange": { "hex": "#F2A35E", "bright": "#F6BF8E", "uso": "secundario: makefiles, dockerfiles" }
+    "teal": {
+      "hex": "#4DD6C1",
+      "bright": "#7FE8DA",
+      "uso": "rutas, ficheros, tablas, repos"
+    },
+    "green": {
+      "hex": "#57E389",
+      "bright": "#89EBAC",
+      "uso": "identificadores, código inline, altas"
+    },
+    "blue": {
+      "hex": "#6FB6FF",
+      "bright": "#9ACCFF",
+      "uso": "urls, ramas, enlaces"
+    },
+    "amber": {
+      "hex": "#E8C46A",
+      "bright": "#EFD697",
+      "uso": "números, dinero, métricas, avisos"
+    },
+    "purple": {
+      "hex": "#B07CF0",
+      "bright": "#C8A3F4",
+      "uso": "modos y ajustes del propio CLI"
+    },
+    "red": {
+      "hex": "#F2777A",
+      "bright": "#F6A0A2",
+      "uso": "bajas, errores, riesgo"
+    },
+    "white": {
+      "hex": "#ECEFF4",
+      "bright": "#FFFFFF",
+      "uso": "énfasis en prosa"
+    },
+    "grey": {
+      "hex": "#6B7683",
+      "bright": "#8D99A6",
+      "uso": "flechas, separadores, unidades"
+    },
+    "orange": {
+      "hex": "#F2A35E",
+      "bright": "#F6BF8E",
+      "uso": "secundario: makefiles, dockerfiles"
+    }
   },
   "ansi": {
-    "black":   "#0A0D0F", "red":     "#F2777A", "green":   "#57E389", "yellow":  "#E8C46A",
-    "blue":    "#6FB6FF", "purple":  "#B07CF0", "cyan":    "#4DD6C1", "white":   "#C9D1D9",
-    "brightBlack":  "#6B7683", "brightRed":    "#F6A0A2",
-    "brightGreen":  "#89EBAC", "brightYellow": "#EFD697",
-    "brightBlue":   "#9ACCFF", "brightPurple": "#C8A3F4",
-    "brightCyan":   "#7FE8DA", "brightWhite":  "#ECEFF4"
+    "black": "#0A0D0F",
+    "red": "#F2777A",
+    "green": "#57E389",
+    "yellow": "#E8C46A",
+    "blue": "#6FB6FF",
+    "purple": "#B07CF0",
+    "cyan": "#4DD6C1",
+    "white": "#C9D1D9",
+    "brightBlack": "#6B7683",
+    "brightRed": "#F6A0A2",
+    "brightGreen": "#89EBAC",
+    "brightYellow": "#EFD697",
+    "brightBlue": "#9ACCFF",
+    "brightPurple": "#C8A3F4",
+    "brightCyan": "#7FE8DA",
+    "brightWhite": "#ECEFF4"
   },
   "windowsAccent": {
-    "base":     "#4DD6C1",
-    "start":    "#2B7D74",
-    "ramp":     ["#D6FFFA", "#A9F2E8", "#7FE8DA", "#4DD6C1", "#2B7D74", "#1F5C56", "#0E2E2B", "#F2A35E"],
+    "base": "#4DD6C1",
+    "start": "#2B7D74",
+    "ramp": [
+      "#D6FFFA",
+      "#A9F2E8",
+      "#7FE8DA",
+      "#4DD6C1",
+      "#2B7D74",
+      "#1F5C56",
+      "#0E2E2B",
+      "#F2A35E"
+    ],
     "colorizationAlpha": "C4"
   },
-  "font": { "face": "Cascadia Code", "sizeTerminal": 11, "sizeVSCode": 13 }
+  "font": {
+    "face": "Cascadia Code",
+    "sizeTerminal": 11,
+    "sizeVSCode": 13
+  },
+  "windowsDesktop": {
+    "_comment": "Geometría del diseño «Tema Windows Claude CLI»: barra de ancho completo pegada abajo, esquinas redondeadas solo arriba, siempre visible.",
+    "taskbar": {
+      "cornerRadius": 14,
+      "buttonRadius": 10,
+      "padding": "14,0,14,0",
+      "activeAlpha": "21",
+      "startAlpha": "1A",
+      "indicatorHeight": 3
+    },
+    "clock": {
+      "timeFormat": "HH':'mm",
+      "dateFormat": "dd'/'MM'/'yyyy",
+      "topLine": "cpu %cpu% · ram %ram%   %time%",
+      "bottomLine": "%date%",
+      "fontFamily": "Cascadia Mono",
+      "_fontNote": "El diseño pide JetBrains Mono, que no está en Windows. Cascadia Mono sí viene con Windows Terminal y es la misma familia de uso."
+    }
+  }
 }

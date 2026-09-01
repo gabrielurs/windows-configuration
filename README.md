@@ -102,14 +102,36 @@ sea idéntica a la de fuera.
 sale en resaltados, foco y menú Inicio, pero no pinta las barras de título salvo que lo
 pidas tú.
 
-**Barra de tareas** — iconos centrados, autohide, sin widgets, sin vista de tareas, sin
-caja de búsqueda. Todo `HKCU`, todo apuntado en el snapshot antes de tocarlo.
+**Barra de tareas** — de ancho completo, pegada abajo y **siempre visible**: iconos
+centrados, búsqueda reducida a icono, sin widgets, sin vista de tareas, nunca combinar
+botones. Y el Explorador en compacto, con extensiones a la vista y ocultos visibles.
+Todo `HKCU`, todo apuntado en el snapshot antes de tocarlo.
 
-**Dock flotante** (opcional, necesita [Windhawk](https://windhawk.net)) — parte del tema
-integrado `DockLike` del mod *Windows 11 Taskbar Styler* y lo recolorea: cristal `#0A0D0F`
-al 90%, borde `#1A2026`, radio 16, despegado 10px del borde inferior, indicador de app
-abierta en teal y botón activo con relleno teal oscuro. El menú Inicio va a juego con
-*Windows 11 Start Menu Styler* usando `TranslucentStartMenu` y su `$CommonBgBrush`.
+**Forma y color de la barra** (necesita [Windhawk](https://windhawk.net)) — sin tema base,
+`controlStyles` propios: fondo `#0A0D0F`, borde superior `#1A2026`, esquinas superiores
+redondeadas 14px, botón de app con radio 10 y relleno teal al 13% cuando está activo,
+indicador de app abierta en teal `#4DD6C1`. El menú Inicio va a juego con
+*Windows 11 Start Menu Styler* (`TranslucentStartMenu` + `$CommonBgBrush`), y el reloj pasa
+a dos líneas monoespaciadas — hora sobre fecha, con cpu y ram — vía
+*Taskbar Clock Customization*.
+
+Dos detalles que cuestan caro si no se saben:
+
+- el botón de Inicio se localiza por `AutomationProperties.AutomationId=StartButton` y
+  **no** por `Name=Start`: el `Name` está traducido y en un Windows en español no casa
+- con «nunca combinar», los botones llevan etiqueta y su clase pasa de
+  `TaskListButtonPanel` a `TaskListLabeledButtonPanel`. Hay que apuntar a las dos, o el
+  fondo se queda sin pintar en cuanto se activan las etiquetas
+
+**Lo que el diseño pide y no se puede:** el icono del botón de Inicio (solo su fondo es
+estilizable, el logo no), los iconos de app en monoespaciada (son los iconos reales de
+cada programa), el indicador con el color de cada app (el styler no sabe qué app es cada
+botón, así que van todos en teal), la rama de git en la bandeja (no hay de dónde sacarla)
+y la línea teal bajo el título de la ventana activa (eso es DWM, no XAML). El propio
+diseño ya avisa de que los iconos por tipo de fichero del Explorador tampoco son nativos.
+
+En cambio el diseño se equivoca en un punto a favor: daba por hecho que cpu/ram exigían
+TrafficMonitor o un script propio, y no — el mod del reloj trae `%cpu%` y `%ram%` de serie.
 
 ## ¿Y sin Windhawk?
 

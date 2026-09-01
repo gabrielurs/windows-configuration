@@ -7,16 +7,24 @@ elevación: se genera un .reg y se importa con UAC.
 Los dos mods tienen que estar YA instalados desde la interfaz de Windhawk. Este
 módulo no instala mods, solo los configura; si no están, avisa y no toca nada.
 
-Base elegida:
-  · barra  → tema integrado «DockLike» (dock centrado y despegado) + overrides
-             de color, radio y margen para llevarlo a la paleta
+Base elegida, según el diseño «Tema Windows Claude CLI»:
+  · barra  → SIN tema base (theme=""), todo en controlStyles propios: ancho
+             completo, pegada abajo, esquinas redondeadas solo arriba. No es el
+             dock flotante de antes; el diseño pide barra siempre visible.
   · inicio → tema integrado «TranslucentStartMenu», que expone $CommonBgBrush
              justamente para esto
+  · reloj  → taskbar-clock-customization, dos líneas (hora sobre fecha) y las
+             métricas de cpu/ram, que el mod trae de serie
+
+Ojo con los selectores: el botón de Inicio se localiza por
+`AutomationProperties.AutomationId=StartButton` y NO por `Name=Start`, porque el
+Name está traducido y en un Windows en español no casaría nunca.
 """
 from __future__ import annotations
 import pathlib, subprocess, time
 
 TASKBAR_MOD = "windows-11-taskbar-styler"
+CLOCK_MOD = "taskbar-clock-customization"
 START_MOD = "windows-11-start-menu-styler"
 MODS_KEY = r"HKLM\SOFTWARE\Windhawk\Engine\Mods"
 MODS_HIVE = r"HKEY_LOCAL_MACHINE\SOFTWARE\Windhawk\Engine\Mods"
@@ -44,51 +52,62 @@ def enabled(mod: str) -> bool | None:
 # ── barra de tareas ───────────────────────────────────────────────────
 def taskbar_settings(pal: dict) -> dict[str, object]:
     s, ro = pal["surfaces"], pal["roles"]
-    dock = argb(s["bgAlt"], "E6")          # el cristal del dock, 90% opaco
+    g = pal["windowsDesktop"]["taskbar"]
+    bg = argb(s["bgAlt"])                 # opaca: el diseño no pide cristal
     edge = argb(s["border"])
     teal = ro["teal"]["hex"]
-    deep = pal["windowsAccent"]["start"]   # teal oscuro, para los rellenos
+    r = g["cornerRadius"]
 
     styles = [
-        # el dock: despegado del borde, redondo por los cuatro lados
+        # el fondo de la barra. Se redondea el Rectangle, no el Grid: al estar
+        # pegada al borde inferior, redondear los cuatro lados se ve como
+        # redondear solo los de arriba, que es lo que pide el diseño.
+        ("Taskbar.TaskbarFrame > Grid#RootGrid > Taskbar.TaskbarBackground > Grid > Rectangle#BackgroundFill", [
+            f'Fill:=<SolidColorBrush Color="{bg}" />',
+            f"RadiusX={r}", f"RadiusY={r}",
+        ]),
+        ("Rectangle#BackgroundStroke", [
+            f'Fill:=<SolidColorBrush Color="{edge}" />',
+        ]),
         ("Taskbar.TaskbarFrame > Grid#RootGrid", [
-            f'Background:=<SolidColorBrush Color="{dock}" />',
-            f'BorderBrush:=<SolidColorBrush Color="{edge}" />',
-            "BorderThickness=1",
-            "CornerRadius=16",
-            "Margin=0,4,0,10",
-            "Padding=8,0,8,0",
+            f"Padding={g['padding']}",
         ]),
-        # la bandeja del sistema, como isla aparte con el mismo cristal
-        ("Grid#SystemTrayFrameGrid", [
-            f'Background:=<SolidColorBrush Color="{dock}" />',
-            f'BorderBrush:=<SolidColorBrush Color="{edge}" />',
-            "CornerRadius=16",
+        # Inicio: cuadrado teal tenue. AutomationId y no Name, porque el Name
+        # está traducido y en un Windows en español no casaría.
+        ("Taskbar.ExperienceToggleButton#LaunchListButton[AutomationProperties.AutomationId=StartButton] > Taskbar.TaskListButtonPanel > Border", [
+            f"CornerRadius={g['buttonRadius']}",
+            f'Background:=<SolidColorBrush Color="{argb(teal, g["startAlpha"])}" />',
         ]),
-        # el botón de cada app
-        ("Taskbar.TaskListButtonPanel@CommonStates > Border#BackgroundElement", [
-            "CornerRadius=10",
+        # El botón de cada app. Van los DOS nombres de clase a propósito: con
+        # «nunca combinar» los botones llevan etiqueta y la clase pasa de
+        # TaskListButtonPanel a TaskListLabeledButtonPanel. Apuntar solo a la
+        # primera deja el fondo sin pintar en cuanto se activan las etiquetas.
+        *[(f"Taskbar.{cls}@CommonStates > Border#BackgroundElement", [
+            f"CornerRadius={g['buttonRadius']}",
             "Background@InactiveNormal=Transparent",
-            f'Background@ActiveNormal:=<SolidColorBrush Color="{argb(deep, "38")}" />',
-            f'Background@ActivePointerOver:=<SolidColorBrush Color="{argb(deep, "4D")}" />',
+            f'Background@ActiveNormal:=<SolidColorBrush Color="{argb(teal, g["activeAlpha"])}" />',
+            f'Background@ActivePointerOver:=<SolidColorBrush Color="{argb(teal, "33")}" />',
             f'Background@InactivePointerOver:=<SolidColorBrush Color="{argb("#FFFFFF", "1F")}" />',
-        ]),
-        # el puntito de «app abierta» → teal
+          ]) for cls in ("TaskListButtonPanel", "TaskListLabeledButtonPanel")],
+        # el indicador de app abierta. El diseño lo quiere del color de cada app;
+        # el styler no sabe qué app es cada botón, así que va teal para todas.
         ("Taskbar.TaskListLabeledButtonPanel@RunningIndicatorStates > Rectangle#RunningIndicator", [
             f'Fill@ActiveRunningIndicator:=<SolidColorBrush Color="{argb(teal)}" />',
-            f'Fill@InactiveRunningIndicator:=<SolidColorBrush Color="{argb(deep, "99")}" />',
-            "RadiusX=2", "RadiusY=2", "Height=3",
+            f'Fill@InactiveRunningIndicator:=<SolidColorBrush Color="{argb(pal["windowsAccent"]["start"], "99")}" />',
+            "RadiusX=2", "RadiusY=2", f"Height={g['indicatorHeight']}",
         ]),
-        # reloj y fecha, con la jerarquía de la paleta
+        # reloj arriba en blanco, fecha abajo en gris
         ("TextBlock#TimeInnerTextBlock", [
-            f'Foreground:=<SolidColorBrush Color="{argb(s["fg"])}" />']),
+            f'Foreground:=<SolidColorBrush Color="{argb(s["fg"])}" />',
+            f'FontFamily={pal["windowsDesktop"]["clock"]["fontFamily"]}']),
         ("TextBlock#DateInnerTextBlock", [
-            f'Foreground:=<SolidColorBrush Color="{argb(ro["grey"]["hex"])}" />']),
+            f'Foreground:=<SolidColorBrush Color="{argb(ro["grey"]["hex"])}" />',
+            f'FontFamily={pal["windowsDesktop"]["clock"]["fontFamily"]}']),
     ]
 
     out: dict[str, object] = {
-        "theme": "DockLike",
-        "clickThroughTaskbar": 1,     # recomendado por el propio mod para docks
+        "theme": "",                  # sin tema base: la barra la definimos entera
+        "clickThroughTaskbar": 0,     # eso era del dock; con barra completa, no
         "xamlDiagnosticsHandling": "alert",
         "styleConstants[0]": "",
         "themeResourceVariables[0]": "",
@@ -98,6 +117,33 @@ def taskbar_settings(pal: dict) -> dict[str, object]:
         for j, rule in enumerate(rules):
             out[f"controlStyles[{i}].styles[{j}]"] = rule
     return out
+
+
+def clock_settings(pal: dict) -> dict[str, object]:
+    """Reloj de dos líneas con cpu/ram, como en el diseño.
+
+    El mod trae %cpu% y %ram% de serie: el diseño daba por hecho que hacían
+    falta TrafficMonitor o un script, y no es el caso.
+    """
+    c = pal["windowsDesktop"]["clock"]
+    return {
+        "ShowSeconds": 0,
+        "TimeFormat": c["timeFormat"],
+        "DateFormat": c["dateFormat"],
+        "DateLocale": "",
+        "WeekdayFormat": "dddd",
+        "TopLine": c["topLine"],
+        "BottomLine": c["bottomLine"],
+        "MiddleLine": "",
+        "TooltipLine": "",
+        "TooltipLineMode": "append",
+        "MaxWidth": 0,
+        "TextSpacing": 0,
+        # con símbolo, como el diseño; el padding evita que el ancho baile al
+        # pasar de 9% a 100%
+        "DataCollection.PercentageFormat": "spacePaddingAndSymbol",
+        "DataCollection.UpdateInterval": 2,
+    }
 
 
 # ── menú Inicio ───────────────────────────────────────────────────────
@@ -125,9 +171,15 @@ def _esc(v: str) -> str:
     return v.replace("\\", "\\\\").replace('"', '\\"')
 
 
-def reg_file(blocks: dict[str, dict[str, object]], wipe: bool = True) -> str:
+def reg_file(blocks: dict[str, dict[str, object]],
+             mod_values: dict[str, dict[str, int]] | None = None,
+             wipe: bool = True) -> str:
     """blocks: {mod: settings}. Borra la subclave Settings antes de reescribirla,
-    para que no queden índices sueltos de una configuración anterior."""
+    para que no queden índices sueltos de una configuración anterior.
+
+    mod_values: valores en la clave del mod, no en Settings — «Disabled», por
+    ejemplo, para activar un mod que estaba apagado."""
+    mod_values = mod_values or {}
     out = ["Windows Registry Editor Version 5.00", ""]
     now = int(time.time())
     for mod, settings in blocks.items():
@@ -141,7 +193,10 @@ def reg_file(blocks: dict[str, dict[str, object]], wipe: bool = True) -> str:
             else:
                 out.append(f'"{_esc(name)}"="{_esc(str(val))}"')
         out += ["", f"[{MODS_HIVE}\\{mod}]",
-                f'"SettingsChangeTime"=dword:{now:08x}', ""]
+                f'"SettingsChangeTime"=dword:{now:08x}']
+        for name, val in mod_values.get(mod, {}).items():
+            out.append(f'"{_esc(name)}"=dword:{val:08x}')
+        out.append("")
     return "\r\n".join(out) + "\r\n"
 
 
