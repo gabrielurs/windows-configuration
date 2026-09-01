@@ -34,6 +34,21 @@ las cinco superficies.
 
 ## Instalar
 
+De una máquina WSL recién hecha al tema entero, en un comando:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/gabrielurs/claude-terminal-theme/main/bootstrap.sh | bash
+```
+
+`bootstrap.sh` no necesita git: si no está, se baja el tarball con el mismo curl
+que lo ha traído. Deja el repo en `~/.local/share/claude-terminal-theme/src` y llama
+a `install.sh`, que detecta lo que falta — git, zsh, python3, oh-my-zsh, Windhawk —
+te enseña la lista completa, pide **una** confirmación y lo instala. Los paquetes del
+sistema van por `sudo`, así que te pedirá la contraseña; no es desatendido y no te voy
+a decir que lo sea.
+
+Si ya tienes el repo:
+
 ```bash
 git clone git@github.com-iesebre:gabrielurs/claude-terminal-theme.git
 cd claude-terminal-theme
@@ -47,8 +62,12 @@ exec zsh
 | *(nada)* | shell + Windows, lo que detecte |
 | `--shell` | solo zsh |
 | `--windows` | solo la parte de Windows |
+| `--dotfiles` | además, la capa opcional de dotfiles |
+| `--no-dock` | salta Windhawk |
+| `--no-deps` | no instales nada que falte |
+| `--yes` | no preguntes |
 | `--dry-run` | enseña cada paso sin escribir nada |
-| `--uninstall` | retira los ficheros del tema |
+| `--uninstall` | devuelve todo al snapshot original |
 
 Es idempotente: relanzarlo deja el mismo resultado. Antes de tocar cualquier fichero
 que ya existía guarda una copia `.bak-claude-<timestamp>` al lado, y exporta las claves
@@ -104,6 +123,40 @@ igual. Los dos mods hay que instalarlos desde la interfaz de Windhawk; este repo
 configura, no los instala.
 
 Windhawk guarda sus ajustes en `HKLM`, así que ese paso pide **una** ventana de UAC.
+
+## Portarlo a otra máquina
+
+El objetivo declarado es **WSL + Windows**. En Linux puro o macOS, `--shell` instala
+el prompt y los colores, pero `claude-10-colors.zsh` asume coreutils de GNU: en macOS
+`ls --color=auto` no existe y habría que ramificar a `LSCOLORS`. No está hecho.
+
+Lo que sí viaja bien:
+
+- **rutas**: nada está cableado. `%USERPROFILE%` se pregunta a `cmd.exe`, el
+  `settings.json` de Windows Terminal se busca por glob (empaquetado, preview y
+  suelto), y VS Code se prueba en sus tres sabores
+- **el snapshot no viaja, a propósito**: vive en `~/.local/share/`, fuera del repo.
+  Cada máquina guarda su propio «antes»; llevarte el de otra es justo lo que rompe
+  la marcha atrás
+- **ningún secreto en el repo**: el `GITHUB_TOKEN` de la capa de dotfiles se deriva
+  de `gh auth token` en cada arranque en vez de guardarse
+
+Lo único que **no se puede automatizar**: los mods de Windhawk. Windhawk los compila
+en local desde su interfaz y no expone CLI. El instalador instala Windhawk con winget,
+detecta si faltan los mods y te dice cuáles, pero ponerlos son dos clics tuyos en
+[windhawk.net/mods](https://windhawk.net/mods). Sin ellos el resto se aplica igual;
+solo te quedas sin dock flotante.
+
+## La capa de dotfiles
+
+`--dotfiles` es opcional y no reescribe tu `.zshrc`: copia los ficheros de
+`dotfiles/zshrc.d/` a `~/.config/claude-terminal-theme/zshrc.d/` y añade al final del
+`.zshrc` un bloque marcado que los sourcea. Quitar el bloque desactiva la capa entera.
+
+Trae PATH (`~/.local/bin`, bun, opencode), nvm, el SDK de Android, el `GITHUB_TOKEN`
+derivado de `gh`, y el prompt anclado abajo con Ctrl+L que limpia también el scrollback.
+Todo condicionado a que la herramienta exista, así que en una máquina pelada no da un
+solo error: simplemente no hace nada. Detalle en [dotfiles/README.md](dotfiles/README.md).
 
 ## Requisitos
 
