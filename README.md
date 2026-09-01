@@ -135,6 +135,14 @@ Dos detalles que cuestan caro si no se saben:
   `TaskListButtonPanel` a `TaskListLabeledButtonPanel`. Hay que apuntar a las dos, o el
   fondo se queda sin pintar en cuanto se activan las etiquetas
 
+**El Explorador es híbrido, y eso marca el límite.** Medido sobre una captura, no
+supuesto: pestañas, barra de comandos y barra de direcciones son XAML y sí toman la
+paleta (`#07090A` / `#0A0D0F`). La lista de ficheros, el árbol de la izquierda y la barra
+de estado son el shell view Win32 clásico, donde el styler no entra: se quedan en el
+`#191919` del tema oscuro del sistema. Cambiar eso pediría parchear `uxtheme`, que no
+compensa. Las **columnas** sí son exactamente las del diseño — NOMBRE / MODIFICADO /
+TIPO / TAMAÑO en ese orden y con sus anchuras — vía *Explorer Details View Columns*.
+
 **Lo que el diseño pide y no se puede:** el icono del botón de Inicio (solo su fondo es
 estilizable, el logo no), los iconos de app en monoespaciada (son los iconos reales de
 cada programa), el indicador con el color de cada app (el styler no sabe qué app es cada

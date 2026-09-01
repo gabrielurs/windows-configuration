@@ -25,6 +25,9 @@ import pathlib, subprocess, time
 
 TASKBAR_MOD = "windows-11-taskbar-styler"
 CLOCK_MOD = "taskbar-clock-customization"
+EXPLORER_MOD = "windows-11-file-explorer-styler"
+COLUMNS_MOD = "explorer-force-details-columns"
+NOTIF_MOD = "windows-11-notification-center-styler"
 START_MOD = "windows-11-start-menu-styler"
 MODS_KEY = r"HKLM\SOFTWARE\Windhawk\Engine\Mods"
 MODS_HIVE = r"HKEY_LOCAL_MACHINE\SOFTWARE\Windhawk\Engine\Mods"
@@ -163,6 +166,104 @@ def start_settings(pal: dict) -> dict[str, object]:
         "webContentStyles[0].target": "",
         "webContentStyles[0].styles[0]": "",
         "webContentCustomJs": "",
+    }
+
+
+# ── Explorador de archivos ────────────────────────────────────────────
+def explorer_settings(pal: dict) -> dict[str, object]:
+    """El Explorador en la paleta. Sin tema base: los targets salen del propio
+    fuente del mod, no de suposiciones.
+
+    Alcance real, medido sobre una captura: el Explorador de Windows 11 es
+    híbrido. Pestañas, barra de comandos y barra de direcciones son XAML y sí se
+    pintan. La lista de ficheros, el árbol de la izquierda y la barra de estado
+    son el shell view Win32 de toda la vida, y ahí el styler no entra: se quedan
+    con el gris oscuro del tema del sistema (#191919). Cambiar eso exigiría
+    parchear uxtheme, que no compensa.
+    """
+    s = pal["surfaces"]
+    chrome = argb(s["bgAlt"])      # barras: comandos, pestañas, direcciones
+    canvas = argb(s["bg"])         # el lienzo: lista de ficheros y home
+    nav = argb("#080B0D")          # panel de navegación, un punto más oscuro
+    edge = argb(s["border"])
+
+    styles = [
+        # barra de comandos, con la línea inferior que separa del contenido
+        ("FileExplorerExtensions.CommandBarControl_Wave1 > Grid, Grid#CommandBarControlRootGrid", [
+            f'Background:=<SolidColorBrush Color="{chrome}" />',
+            "BorderThickness=0,0,0,1",
+            f'BorderBrush:=<SolidColorBrush Color="{edge}" />']),
+        ("CommandBar#FileExplorerCommandBar", ["Background=Transparent"]),
+        ("Border#BottomBorderLine", [f'Background:=<SolidColorBrush Color="{edge}" />']),
+        # fila de la barra de direcciones
+        ("FileExplorerExtensions.NavigationBarControl > Grid#NavigationBarControlGrid", [
+            f'Background:=<SolidColorBrush Color="{chrome}" />']),
+        ("Grid#FileExplorerAddressBarGrid", [
+            f'Background:=<SolidColorBrush Color="{canvas}" />',
+            "CornerRadius=6", "BorderThickness=1",
+            f'BorderBrush:=<SolidColorBrush Color="{edge}" />']),
+        # el nodo real de la pastilla; sin este, el fondo se queda a medias
+        ("FileExplorerExtensions.AddressBarControl > Grid#PART_LayoutRoot > Grid#NormalModeGrid", [
+            f'Background:=<SolidColorBrush Color="{canvas}" />',
+            "CornerRadius=6", "BorderThickness=1",
+            f'BorderBrush:=<SolidColorBrush Color="{edge}" />']),
+        # caja de búsqueda
+        ("AutoSuggestBox#FileExplorerSearchBox > Grid#LayoutRoot > TextBox > Grid@CommonStates > Border#BorderElement", [
+            f'Background:=<SolidColorBrush Color="{canvas}" />',
+            f'BorderBrush:=<SolidColorBrush Color="{edge}" />',
+            "CornerRadius=6"]),
+        # pestañas
+        ("Grid#TabContainerGrid", [f'Background:=<SolidColorBrush Color="{canvas}" />']),
+        ("TabViewItem > Grid#LayoutRoot > Canvas > Microsoft.UI.Xaml.Shapes.Path#SelectedBackgroundPath", [
+            f'Fill:=<SolidColorBrush Color="{chrome}" />']),
+        # el lienzo
+        ("Grid#DetailsViewControlRootGrid", [f'Background:=<SolidColorBrush Color="{canvas}" />']),
+        ("Grid#HomeViewRootGrid", [f'Background:=<SolidColorBrush Color="{canvas}" />']),
+        ("FileExplorerExtensions.GalleryViewControl#GalleryViewControl > Grid", [
+            f'Background:=<SolidColorBrush Color="{canvas}" />']),
+        # menús y tooltips a juego
+        ("MenuFlyoutPresenter > Border", [
+            f'Background:=<SolidColorBrush Color="{chrome}" />',
+            f'BorderBrush:=<SolidColorBrush Color="{edge}" />']),
+        ("ToolTip", [f'Background:=<SolidColorBrush Color="{chrome}" />']),
+    ]
+    out: dict[str, object] = {
+        "theme": "",
+        "backgroundTranslucentEffect": "",
+        "styleConstants[0]": "",
+        "themeResourceVariables[0]": "",
+    }
+    for i, (target, rules) in enumerate(styles):
+        out[f"controlStyles[{i}].target"] = target
+        for j, rule in enumerate(rules):
+            out[f"controlStyles[{i}].styles[{j}]"] = rule
+    return out
+
+
+def columns_settings(pal: dict) -> dict[str, object]:
+    """Las cuatro columnas del diseño, en su orden y con sus anchuras."""
+    out: dict[str, object] = {}
+    for i, col in enumerate(pal["windowsDesktop"]["explorer"]["columns"]):
+        out[f"columns[{i}].property"] = col["property"]
+        out[f"columns[{i}].force_width"] = 1
+        out[f"columns[{i}].width"] = col["width"]
+    out["sort_property"] = ""
+    out["sort_descending"] = 0
+    out["exclude_virtual"] = 1     # la papelera y «Este equipo» mantienen las suyas
+    return out
+
+
+def notification_settings(pal: dict) -> dict[str, object]:
+    """Centro de notificaciones. TranslucentShell expone $CommonBgBrush igual
+    que el menú Inicio, así que basta con recolorearlo."""
+    s = pal["surfaces"]
+    return {
+        "theme": "TranslucentShell",
+        "styleConstants[0]": f'CommonBgBrush=<WindhawkBlur BlurAmount="24" TintColor="{argb(s["bg"], "B3")}"/>',
+        "styleConstants[1]": "thumbnailImageSize=300",
+        "controlStyles[0].target": "MenuFlyoutPresenter > Border",
+        "controlStyles[0].styles[0]": f'BorderBrush:=<SolidColorBrush Color="{argb(s["border"])}" />',
+        "themeResourceVariables[0]": "",
     }
 
 

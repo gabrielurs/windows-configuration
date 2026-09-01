@@ -115,6 +115,27 @@
       "bottomLine": "%date%",
       "fontFamily": "Cascadia Mono",
       "_fontNote": "El diseño pide JetBrains Mono, que no está en Windows. Cascadia Mono sí viene con Windows Terminal y es la misma familia de uso."
+    },
+    "explorer": {
+      "_comment": "Las columnas del diseño: NOMBRE / MODIFICADO / TIPO / TAMAÑO, con las anchuras de su rejilla 1fr·150·120·90.",
+      "columns": [
+        {
+          "property": "System.ItemNameDisplay",
+          "width": 300
+        },
+        {
+          "property": "System.DateModified",
+          "width": 150
+        },
+        {
+          "property": "System.ItemTypeText",
+          "width": 120
+        },
+        {
+          "property": "System.Size",
+          "width": 90
+        }
+      ]
     }
   }
 }

@@ -218,15 +218,20 @@ def apply_pinned_icons(pal: dict, snap: state.Snapshot, ctx, win_home, remove: b
 
 
 def apply_windhawk(pal: dict, snap: state.Snapshot, ctx, win_home, remove: bool = False) -> bool:
-    print("· Windhawk (barra, menú Inicio y reloj)")
+    print("· Windhawk (barra, Inicio, reloj, Explorador y notificaciones)")
     if not pathlib.Path("/mnt/c/Program Files/Windhawk").is_dir():
         ctx.say("Windhawk no está instalado, salto")
         return False
 
-    wanted = (windhawk.TASKBAR_MOD, windhawk.START_MOD, windhawk.CLOCK_MOD)
+    wanted = (windhawk.TASKBAR_MOD, windhawk.START_MOD, windhawk.CLOCK_MOD,
+              windhawk.EXPLORER_MOD, windhawk.COLUMNS_MOD, windhawk.NOTIF_MOD)
     missing = [m for m in wanted if not windhawk.installed(m)]
     if missing:
-        ctx.say("faltan mods, instálalos desde la interfaz de Windhawk: " + ", ".join(missing))
+        # No se puede instalar un mod desde fuera: Windhawk los compila en local
+        # desde su interfaz y no expone CLI. Se configura lo que haya y se avisa.
+        ctx.say("no instalados, los salto (instálalos en Windhawk): " + ", ".join(missing))
+    wanted = tuple(m for m in wanted if windhawk.installed(m))
+    if not wanted:
         return False
     off = [m for m in wanted if windhawk.enabled(m) is False]
     if off:
@@ -242,16 +247,20 @@ def apply_windhawk(pal: dict, snap: state.Snapshot, ctx, win_home, remove: bool 
         snap.capture_reg(f"{windhawk.MODS_KEY}\\{mod}", "SettingsChangeTime")
         snap.capture_reg(f"{windhawk.MODS_KEY}\\{mod}", "Disabled")
 
-    blocks = {
-        windhawk.TASKBAR_MOD: windhawk.taskbar_settings(pal),
-        windhawk.START_MOD: windhawk.start_settings(pal),
-        windhawk.CLOCK_MOD: windhawk.clock_settings(pal),
+    builders = {
+        windhawk.TASKBAR_MOD:  windhawk.taskbar_settings,
+        windhawk.START_MOD:    windhawk.start_settings,
+        windhawk.CLOCK_MOD:    windhawk.clock_settings,
+        windhawk.EXPLORER_MOD: windhawk.explorer_settings,
+        windhawk.COLUMNS_MOD:  windhawk.columns_settings,
+        windhawk.NOTIF_MOD:    windhawk.notification_settings,
     }
+    blocks = {m: builders[m](pal) for m in wanted}
     # el del reloj venía apagado; sin esto no se carga
     mod_values = {m: {"Disabled": 0} for m in wanted}
     content = windhawk.reg_file(blocks, mod_values)
     n = sum(len(v) for v in blocks.values())
-    ctx.say(f"{n} ajustes: barra sin tema base + TranslucentStartMenu + reloj de dos líneas")
+    ctx.say(f"{n} ajustes en {len(blocks)} mods: " + ", ".join(m.replace("windows-11-", "") for m in blocks))
 
     if ctx.dry:
         ctx.say("no se importa nada; el .reg se habría escrito y pedido UAC")
