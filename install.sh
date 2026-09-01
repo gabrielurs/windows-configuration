@@ -44,7 +44,7 @@ while [[ $# -gt 0 ]]; do
     --yes|-y)    ASSUME_YES=1 ;;
     --dry-run)   DRY=1 ;;
     --uninstall) UNINSTALL=1 ;;
-    -h|--help)   sed -n '2,15p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    -h|--help)   awk 'NR>1 && /^#/ {sub(/^# ?/,""); print; next} NR>1 {exit}' "$0"; exit 0 ;;
     *)           die "opción desconocida: $1" ;;
   esac
   shift
