@@ -155,6 +155,68 @@ def apply_context_menu(snap: state.Snapshot, ctx, remove: bool = False) -> bool:
     return True
 
 
+PINNED = ("Microsoft/Internet Explorer/Quick Launch/User Pinned/TaskBar")
+
+
+def apply_pinned_icons(pal: dict, snap: state.Snapshot, ctx, win_home, remove: bool = False) -> bool:
+    """Reviste los accesos directos anclados con los glifos de la paleta.
+
+    Solo llega hasta aquí: el icono de un acceso directo es nuestro, pero el de
+    una app en ejecución que no esté anclada lo pone la propia app y no hay por
+    dónde cogerlo. El diseño dibuja cinco glifos; se aplican a los que estén
+    anclados de verdad.
+    """
+    if remove or not win_home:
+        return False
+    print("· iconos de los anclados")
+    try:
+        import PIL  # noqa: F401
+    except ImportError:
+        ctx.say("falta python3-pil, no puedo generar los iconos")
+        return False
+
+    import icons
+    pinned_dir = win_home / "AppData/Roaming" / PINNED
+    if not pinned_dir.is_dir():
+        ctx.say("no encuentro la carpeta de anclados")
+        return False
+
+    icon_dir = win_home / "AppData/Local/claude-terminal-theme/icons"
+    if not ctx.dry:
+        icons.build_all(pal, icon_dir)
+
+    changed = False
+    for lnk in sorted(pinned_dir.glob("*.lnk")):
+        name = lnk.stem
+        entry = icons.APPS.get(name)
+        if not entry:
+            ctx.say(f"{name}: sin glifo asignado en icons.APPS, lo dejo")
+            continue
+        glyph, role = entry
+        ico = icon_dir / f"{role}-{name.replace(' ', '-')}.ico"
+        snap.capture_file(lnk)              # el .lnk entero, para poder devolverlo
+        ctx.say(f"{name} → {glyph} {role}")
+        changed = True
+        if ctx.dry:
+            continue
+        win_ico = subprocess.run(["wslpath", "-w", str(ico)],
+                                 capture_output=True, text=True).stdout.strip()
+        win_lnk = subprocess.run(["wslpath", "-w", str(lnk)],
+                                 capture_output=True, text=True).stdout.strip()
+        ps = (f"$s=New-Object -ComObject WScript.Shell;"
+              f"$l=$s.CreateShortcut('{win_lnk}');"
+              f"$l.IconLocation='{win_ico},0';$l.Save()")
+        r = subprocess.run(["powershell.exe", "-NoProfile", "-Command", ps],
+                           capture_output=True, cwd="/mnt/c")
+        if r.returncode != 0:
+            ctx.say("  ! " + r.stderr.decode("cp850", "replace").strip()[:120])
+
+    if changed and not ctx.dry:
+        # sin esto Windows sigue enseñando el icono viejo desde su caché
+        subprocess.run(["ie4uinit.exe", "-show"], capture_output=True, cwd="/mnt/c")
+    return changed
+
+
 def apply_windhawk(pal: dict, snap: state.Snapshot, ctx, win_home, remove: bool = False) -> bool:
     print("· Windhawk (barra, menú Inicio y reloj)")
     if not pathlib.Path("/mnt/c/Program Files/Windhawk").is_dir():

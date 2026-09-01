@@ -49,6 +49,10 @@ deps_scan() {
   command -v git >/dev/null     || { DEPS_MISSING+=("git — para clonar los plugins de zsh"); DEPS_PKGS+=(git); }
   command -v python3 >/dev/null || { DEPS_MISSING+=("python3 — lo usa el instalador"); DEPS_PKGS+=(python3); }
   command -v zsh >/dev/null     || { DEPS_MISSING+=("zsh — la shell del tema"); DEPS_PKGS+=(zsh); }
+  command -v fc-list >/dev/null || { DEPS_MISSING+=("fontconfig — para elegir una fuente con los glifos"); DEPS_PKGS+=(fontconfig); }
+  python3 -c "import PIL" 2>/dev/null || {
+    DEPS_MISSING+=("python3-pil — genera los iconos de los anclados")
+    DEPS_PKGS+=(python3-pil fonts-dejavu-core); }
 
   [[ -d "${ZSH:-$HOME/.oh-my-zsh}" ]] || {
     DEPS_MISSING+=("oh-my-zsh — el tema es un tema suyo")
