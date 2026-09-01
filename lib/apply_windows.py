@@ -247,7 +247,7 @@ def main():
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--uninstall", action="store_true")
     ap.add_argument("--skip", default="",
-                    help="lista separada por comas: wt,vscode,ps,accent,taskbar,windhawk")
+                    help="lista separada por comas: wt,vscode,ps,accent,taskbar,menu,windhawk")
     args = ap.parse_args()
 
     if not pathlib.Path("/mnt/c").is_dir():
@@ -276,6 +276,9 @@ def main():
     if "taskbar" not in skip:
         restart |= desktop.apply_taskbar(ctx.snap, ctx)
         ctx.note("barra de tareas")
+    if "menu" not in skip:
+        if desktop.apply_context_menu(ctx.snap, ctx):
+            ctx.note("menú contextual")
     if "windhawk" not in skip:
         if desktop.apply_windhawk(pal, ctx.snap, ctx, home):
             restart = True

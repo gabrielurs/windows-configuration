@@ -104,13 +104,25 @@ pidas tú.
 
 **Barra de tareas** — de ancho completo, pegada abajo y **siempre visible**: iconos
 centrados, búsqueda reducida a icono, sin widgets, sin vista de tareas, nunca combinar
-botones. Y el Explorador en compacto, con extensiones a la vista y ocultos visibles.
-Todo `HKCU`, todo apuntado en el snapshot antes de tocarlo.
+botones.
+
+**Escritorio, Explorador y menús** — «Este equipo» visible, vista Detalles por defecto,
+espaciado compacto, extensiones a la vista y ocultos visibles; el menú Inicio con la
+sección de recientes que dibuja el diseño; y «Abrir con Code» en el menú contextual de
+carpeta y de fondo de carpeta, con la ruta de `Code.exe` resuelta por búsqueda y no
+cableada. Todo `HKCU` — ni siquiera el menú contextual necesita elevación, porque va a
+`HKCU\Software\Classes` y no a `HKCR`. Todo apuntado en el snapshot antes de tocarlo.
 
 **Forma y color de la barra** (necesita [Windhawk](https://windhawk.net)) — sin tema base,
-`controlStyles` propios: fondo `#0A0D0F`, borde superior `#1A2026`, esquinas superiores
-redondeadas 14px, botón de app con radio 10 y relleno teal al 13% cuando está activo,
-indicador de app abierta en teal `#4DD6C1`. El menú Inicio va a juego con
+`controlStyles` propios: fondo `#0A0D0F` de borde a borde, línea superior `#1A2026`,
+botón de app con radio 10 y relleno teal al 13% cuando está activo, indicador de app
+abierta en teal `#4DD6C1`.
+
+`cornerRadius` y `padding` van a **0** en `palette.json`, y no por descuido: el
+`Rectangle` del fondo vive *dentro* del padding del `RootGrid`, así que cualquier padding
+lateral deja los extremos sin pintar y se ven como dos huecos en la pantalla. El radio
+hace lo mismo en las esquinas. El diseño dibuja esquinas redondeadas; si las prefieres a
+la cobertura total, sube `cornerRadius`. El menú Inicio va a juego con
 *Windows 11 Start Menu Styler* (`TranslucentStartMenu` + `$CommonBgBrush`), y el reloj pasa
 a dos líneas monoespaciadas — hora sobre fecha, con cpu y ram — vía
 *Taskbar Clock Customization*.

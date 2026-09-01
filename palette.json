@@ -99,12 +99,14 @@
   "windowsDesktop": {
     "_comment": "Geometría del diseño «Tema Windows Claude CLI»: barra de ancho completo pegada abajo, esquinas redondeadas solo arriba, siempre visible.",
     "taskbar": {
-      "cornerRadius": 14,
+      "cornerRadius": 0,
       "buttonRadius": 10,
-      "padding": "14,0,14,0",
+      "padding": "0,0,0,0",
       "activeAlpha": "21",
       "startAlpha": "1A",
-      "indicatorHeight": 3
+      "indicatorHeight": 3,
+      "_radiusNote": "A 0 a propósito: el diseño dibuja las esquinas superiores redondeadas, pero al estar la barra a ancho completo el redondeo recorta los extremos. Súbelo si prefieres las esquinas del diseño a la cobertura total.",
+      "_paddingNote": "A 0 a propósito: el Rectangle del fondo vive DENTRO del padding del RootGrid, así que cualquier padding lateral deja la barra sin pintar esos píxeles en los extremos — se ven como dos huecos."
     },
     "clock": {
       "timeFormat": "HH':'mm",

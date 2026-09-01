@@ -14,6 +14,11 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import state, windhawk  # noqa: E402
 
 ADVANCED = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
+DESKTOP_ICONS = (r"HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer"
+                 r"\HideDesktopIcons\NewStartPanel")
+BAGS = r"HKCU\Software\Microsoft\Windows\Shell\Bags\AllFolders\Shell"
+CLASSES = r"HKCU\Software\Classes"
+GUID_THIS_PC = "{20D04FE0-3AEA-1069-A2D8-08002B30309D}"
 SEARCH = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Search"
 STUCK = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\StuckRects3"
 
@@ -35,6 +40,17 @@ EXPLORER = [
     (ADVANCED, "HideFileExt",    "REG_DWORD", "0", "extensiones siempre a la vista"),
     (ADVANCED, "Hidden",         "REG_DWORD", "1", "mostrar ficheros ocultos"),
     (ADVANCED, "ShowSuperHidden","REG_DWORD", "0", "pero no los del sistema"),
+    # El diseño enseña «Este equipo» en el escritorio; 0 = visible.
+    (DESKTOP_ICONS, GUID_THIS_PC, "REG_DWORD", "0", "«Este equipo» en el escritorio"),
+    # Vista Detalles por defecto, que es lo que dibuja el diseño en el Explorador.
+    (BAGS, "FolderType", "REG_SZ", "NotSpecified", "vista Detalles por defecto"),
+]
+
+# El menú Inicio del diseño tiene sección RECIENTES con ficheros y apps.
+START = [
+    (ADVANCED, "Start_TrackDocs",  "REG_DWORD", "1", "recientes: ficheros"),
+    (ADVANCED, "Start_TrackProgs", "REG_DWORD", "1", "recientes: aplicaciones"),
+    (ADVANCED, "Start_Layout",     "REG_DWORD", "1", "rejilla con más anclados"),
 ]
 
 
@@ -63,7 +79,7 @@ def apply_taskbar(snap: state.Snapshot, ctx, remove: bool = False) -> bool:
         return False
     print("· barra de tareas y Explorador (HKCU)")
     touched = False
-    for key, name, typ, data, why in TASKBAR + EXPLORER:
+    for key, name, typ, data, why in TASKBAR + EXPLORER + START:
         cur = state.read_reg(key, name)
         snap.capture_reg(key, name)
         if cur and _same(typ, cur[1], data):
@@ -90,6 +106,53 @@ def apply_taskbar(snap: state.Snapshot, ctx, remove: bool = False) -> bool:
                                 "/t", "REG_BINARY", "/d", new, "/f"],
                                capture_output=True, cwd="/mnt/c")
     return touched
+
+
+def _vscode_exe() -> str | None:
+    """Ruta de Code.exe en formato Windows, o None. Se busca en vez de cablearse
+    para que esto funcione en cualquier máquina."""
+    import glob
+    cands = glob.glob("/mnt/c/Users/*/AppData/Local/Programs/Microsoft VS Code/Code.exe")
+    cands += glob.glob("/mnt/c/Program Files/Microsoft VS Code/Code.exe")
+    if not cands:
+        return None
+    return subprocess.run(["wslpath", "-w", cands[0]],
+                          capture_output=True, text=True).stdout.strip()
+
+
+def apply_context_menu(snap: state.Snapshot, ctx, remove: bool = False) -> bool:
+    """«Abrir con Code» en carpetas y en el fondo de carpeta.
+
+    Va a HKCU\Software\Classes, no a HKCR, para no necesitar elevación.
+    «Abrir en Terminal» ya lo pone Windows 11 por su cuenta, así que no se toca.
+    """
+    if remove:
+        return False
+    print("· menú contextual")
+    exe = _vscode_exe()
+    if not exe:
+        ctx.say("VS Code no está instalado, salto el verbo «Abrir con Code»")
+        return False
+
+    entries = [
+        (rf"{CLASSES}\Directory\shell\VSCode", "%V", "sobre una carpeta"),
+        (rf"{CLASSES}\Directory\Background\shell\VSCode", "%V", "en el fondo de carpeta"),
+    ]
+    for key, arg, where in entries:
+        snap.capture_reg(key, "")
+        snap.capture_reg(key, "Icon")
+        snap.capture_reg(key + r"\command", "")
+        ctx.say(f"«Abrir con Code» {where}")
+        if ctx.dry:
+            continue
+        for k, name, val in ((key, None, "Abrir con Code"),
+                             (key, "Icon", f"{exe},0"),
+                             (key + r"\command", None, f'"{exe}" "{arg}"')):
+            cmd = ["reg.exe", "add", k]
+            cmd += ["/ve"] if name is None else ["/v", name]
+            cmd += ["/t", "REG_SZ", "/d", val, "/f"]
+            subprocess.run(cmd, capture_output=True, cwd="/mnt/c")
+    return True
 
 
 def apply_windhawk(pal: dict, snap: state.Snapshot, ctx, win_home, remove: bool = False) -> bool:
