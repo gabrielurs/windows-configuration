@@ -1,0 +1,99 @@
+# GENERADO desde windows/Microsoft.PowerShell_profile.ps1.tmpl — paleta "Claude CLI"
+#
+#   teal rutas · verde comandos · azul ramas y variables · ámbar strings
+#   morado parámetros · rojo errores · gris separadores
+
+# La consola de PS 5.1 arranca en cp850/1252: sin esto, ❯ · é salen como ?
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
+$e = [char]27
+$Global:CC = @{
+    Teal   = "$e[@@TEAL@@m"
+    Green  = "$e[@@GREEN@@m"
+    Blue   = "$e[@@BLUE@@m"
+    Amber  = "$e[@@AMBER@@m"
+    Purple = "$e[@@PURPLE@@m"
+    Red    = "$e[@@RED@@m"
+    White  = "$e[@@WHITE@@m"
+    Grey   = "$e[@@GREY@@m"
+    Off    = "$e[0m"
+}
+
+$Global:__ccHasGit = [bool](Get-Command git -ErrorAction SilentlyContinue)
+
+function Global:prompt {
+    $ok = $?
+
+    # ── ruta, con ~ y truncado a 3 tramos si es profunda ──
+    $p = (Get-Location).Path
+    if ($p -match '^Microsoft\.PowerShell\.Core\\FileSystem::(.*)$') { $p = $Matches[1] }
+    if ($p.StartsWith($HOME, [StringComparison]::OrdinalIgnoreCase)) {
+        $p = '~' + $p.Substring($HOME.Length)
+    }
+    $parts = $p -split '[\\/]' | Where-Object { $_ -ne '' }
+    if ($parts.Count -gt 4) {
+        $p = "$($parts[0])\$($CC.Grey)…$($CC.Teal)\" + ($parts[-3..-1] -join '\')
+    }
+
+    # ── rama git ──
+    $git = ''
+    if ($__ccHasGit) {
+        $branch = & git rev-parse --abbrev-ref HEAD 2>$null
+        if ($LASTEXITCODE -eq 0 -and $branch) {
+            $git = "$($CC.Grey) on $($CC.Blue)$branch"
+            if (& git status --porcelain 2>$null) { $git += "$($CC.Amber) ~" }
+        }
+    }
+
+    $arrow = if ($ok) { $CC.Teal } else { $CC.Red }
+    "$($CC.Teal)$p$git$($CC.Off) $arrow" + [char]0x276F + "$($CC.Off) "
+}
+
+# ── PSReadLine ────────────────────────────────────────────────────────
+# Ojo: PSReadLine 2.0 (el que trae PS 5.1) no acepta la clave 'Function'.
+if (Get-Module -ListAvailable -Name PSReadLine) {
+    Import-Module PSReadLine -ErrorAction SilentlyContinue
+    Set-PSReadLineOption -Colors @{
+        Command            = "$e[@@GREEN@@m"
+        Keyword            = "$e[@@PURPLE@@m"
+        Parameter          = "$e[@@PURPLE@@m"
+        Operator           = "$e[@@GREY@@m"
+        Comment            = "$e[@@GREY@@m"
+        ContinuationPrompt = "$e[@@GREY@@m"
+        String             = "$e[@@AMBER@@m"
+        Number             = "$e[@@AMBER@@m"
+        Variable           = "$e[@@BLUE@@m"
+        Member             = "$e[@@TEAL@@m"
+        Type               = "$e[@@TEAL@@m"
+        Default            = "$e[@@FG@@m"
+        Emphasis           = "$e[@@WHITE@@m"
+        Error              = "$e[@@RED@@m"
+        Selection          = "$e[@@SEL@@m"
+    }
+    Set-PSReadLineOption -EditMode Windows -BellStyle None -HistoryNoDuplicates
+}
+
+if ($Host.PrivateData) {
+    $Host.PrivateData.ErrorForegroundColor   = 'Red'
+    $Host.PrivateData.WarningForegroundColor = 'Yellow'
+    $Host.PrivateData.VerboseForegroundColor = 'Cyan'
+    $Host.PrivateData.DebugForegroundColor   = 'Magenta'
+}
+
+function claude-palette {
+    $rows = @(
+        @('teal  ', '@@HEX_TEAL@@',   $CC.Teal,   'rutas, ficheros, repos'),
+        @('verde ', '@@HEX_GREEN@@',  $CC.Green,  'identificadores, código, altas'),
+        @('azul  ', '@@HEX_BLUE@@',   $CC.Blue,   'urls, ramas, enlaces'),
+        @('ámbar ', '@@HEX_AMBER@@',  $CC.Amber,  'números, métricas, avisos'),
+        @('morado', '@@HEX_PURPLE@@', $CC.Purple, 'modos y ajustes'),
+        @('rojo  ', '@@HEX_RED@@',    $CC.Red,    'bajas, errores, riesgo'),
+        @('blanco', '@@HEX_WHITE@@',  $CC.White,  'énfasis en prosa'),
+        @('gris  ', '@@HEX_GREY@@',   $CC.Grey,   'flechas, separadores, unidades')
+    )
+    Write-Host "$($CC.Teal) tema · claude cli$($CC.Off)"
+    foreach ($r in $rows) {
+        Write-Host ("{0}  ███  {1}{2}  {0}{3}{2} {4}{5}{2}" -f $r[2], $r[1], $CC.Off, $r[0], $CC.Grey, $r[3])
+    }
+}
