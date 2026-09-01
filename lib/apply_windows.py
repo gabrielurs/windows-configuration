@@ -9,7 +9,7 @@ from __future__ import annotations
 import argparse, collections, datetime, glob, json, os, pathlib, shutil, subprocess, sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-import render  # noqa: E402
+import render, state, desktop, uninstall  # noqa: E402
 
 STAMP = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
 MARKER_KEYS_VSCODE = ("terminal.background", "terminal.ansiCyan", "panel.background")
@@ -19,6 +19,7 @@ class Ctx:
     def __init__(self, dry: bool):
         self.dry = dry
         self.changed: list[str] = []
+        self.snap = state.Snapshot(dry)
 
     def say(self, what: str):
         print(("  [dry] " if self.dry else "  ") + what)
@@ -78,6 +79,7 @@ def find_ps_profile(home: pathlib.Path | None) -> pathlib.Path | None:
 
 # ── utilidades ────────────────────────────────────────────────────────
 def backup(path: pathlib.Path, ctx: Ctx):
+    ctx.snap.capture_file(path)          # así --uninstall sabe devolverlo
     if path.exists():
         dst = path.with_name(path.name + f".bak-claude-{STAMP}")
         ctx.say(f"backup → {dst.name}")
@@ -224,6 +226,7 @@ def apply_accent(pal: dict, home, ctx: Ctx, remove: bool = False):
                                capture_output=True, cwd="/mnt/c")
 
     for key, name, typ, data in render.registry_values(pal):
+        ctx.snap.capture_reg(key, name)
         ctx.say(f"{name} = {data}")
         if not ctx.dry:
             r = subprocess.run(["reg.exe", "add", key, "/v", name, "/t", typ,
@@ -243,28 +246,46 @@ def main():
     ap = argparse.ArgumentParser(description="Aplica el tema Claude CLI al lado Windows")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--uninstall", action="store_true")
-    ap.add_argument("--skip", default="", help="lista separada por comas: wt,vscode,ps,accent")
+    ap.add_argument("--skip", default="",
+                    help="lista separada por comas: wt,vscode,ps,accent,taskbar,windhawk")
     args = ap.parse_args()
 
     if not pathlib.Path("/mnt/c").is_dir():
         sys.exit("no veo /mnt/c: esto hay que lanzarlo desde WSL")
 
     pal = render.load()
-    ctx = Ctx(args.dry_run)
     home = win_userprofile()
+
+    if args.uninstall:
+        uninstall.run(dry=args.dry_run, win_home=home)
+        return
+
+    ctx = Ctx(args.dry_run)
     skip = {s.strip() for s in args.skip.split(",") if s.strip()}
     print(f"paleta «{pal['name']}» · %USERPROFILE% = {home or 'desconocido'}\n")
 
+    restart = False
     if "wt" not in skip:
-        apply_wt(pal, ctx, args.uninstall)
+        apply_wt(pal, ctx)
     if "vscode" not in skip:
-        apply_vscode(pal, home, ctx, args.uninstall)
+        apply_vscode(pal, home, ctx)
     if "ps" not in skip:
-        apply_ps(pal, home, ctx, args.uninstall)
+        apply_ps(pal, home, ctx)
     if "accent" not in skip:
-        apply_accent(pal, home, ctx, args.uninstall)
+        apply_accent(pal, home, ctx)
+    if "taskbar" not in skip:
+        restart |= desktop.apply_taskbar(ctx.snap, ctx)
+        ctx.note("barra de tareas")
+    if "windhawk" not in skip:
+        if desktop.apply_windhawk(pal, ctx.snap, ctx, home):
+            restart = True
+            ctx.note("Windhawk")
 
+    ctx.snap.save()
     print("\n" + ("nada que hacer" if not ctx.changed else "listo: " + ", ".join(ctx.changed)))
+    if restart and not ctx.dry:
+        print("\nreinicia explorer para ver el dock y la barra:")
+        print("  powershell.exe -Command \"Stop-Process -Name explorer -Force\"")
 
 
 if __name__ == "__main__":

@@ -1,8 +1,9 @@
 # claude-terminal-theme
 
-Un tema de terminal derivado de la paleta que usa **Claude Code** en prosa, aplicado
-de una pasada a todo lo que ves cuando trabajas: zsh, Windows Terminal, PowerShell,
-la terminal integrada de VS Code y el color de acento de Windows.
+Un tema derivado de la paleta que usa **Claude Code** en prosa, aplicado de una pasada
+a todo lo que ves cuando trabajas: zsh, Windows Terminal, PowerShell, la terminal
+integrada de VS Code, el acento de Windows y la barra de tareas — que pasa a ser un
+dock flotante al estilo macOS.
 
 No es un tema más: la paleta asigna **un color por tipo de dato**, siempre el mismo.
 Una ruta es teal en el prompt, en `ls`, en `grep -n`, en el resaltado de la línea de
@@ -45,7 +46,7 @@ exec zsh
 |---|---|
 | *(nada)* | shell + Windows, lo que detecte |
 | `--shell` | solo zsh |
-| `--windows` | solo Windows Terminal, VS Code, PowerShell y acento |
+| `--windows` | solo la parte de Windows |
 | `--dry-run` | enseña cada paso sin escribir nada |
 | `--uninstall` | retira los ficheros del tema |
 
@@ -82,25 +83,60 @@ sea idéntica a la de fuera.
 sale en resaltados, foco y menú Inicio, pero no pinta las barras de título salvo que lo
 pidas tú.
 
+**Barra de tareas** — iconos centrados, autohide, sin widgets, sin vista de tareas, sin
+caja de búsqueda. Todo `HKCU`, todo apuntado en el snapshot antes de tocarlo.
+
+**Dock flotante** (opcional, necesita [Windhawk](https://windhawk.net)) — parte del tema
+integrado `DockLike` del mod *Windows 11 Taskbar Styler* y lo recolorea: cristal `#0A0D0F`
+al 90%, borde `#1A2026`, radio 16, despegado 10px del borde inferior, indicador de app
+abierta en teal y botón activo con relleno teal oscuro. El menú Inicio va a juego con
+*Windows 11 Start Menu Styler* usando `TranslucentStartMenu` y su `$CommonBgBrush`.
+
+## ¿Y sin Windhawk?
+
+Casi todo. Por registro puedes tener el acento, el modo oscuro, la transparencia, el
+fondo, y la barra centrada, con autohide y sin widgets ni búsqueda. Lo único que Windows
+**no** expone por registro es un dock **flotante, redondeado y despegado del borde**: eso
+necesita inyección en la UI de explorer, que es lo que hace Windhawk.
+
+Si no lo tienes, `./install.sh` lo detecta y se salta ese paso solo — el resto se aplica
+igual. Los dos mods hay que instalarlos desde la interfaz de Windhawk; este repo los
+configura, no los instala.
+
+Windhawk guarda sus ajustes en `HKLM`, así que ese paso pide **una** ventana de UAC.
+
 ## Requisitos
 
 - zsh ≥ 5.7 y [oh-my-zsh](https://ohmyz.sh/) — los hex en el prompt necesitan 5.7
 - un terminal con color de 24 bits
 - `python3` (solo para el instalador)
 - la parte de Windows necesita WSL con `/mnt/c` montado e interop activo
+- el dock flotante necesita Windhawk con los mods *Windows 11 Taskbar Styler* y
+  *Windows 11 Start Menu Styler* instalados
 
 Sin WSL, `./install.sh --shell` funciona igual en Linux o macOS.
 
 ## Deshacer
 
 ```bash
+./install.sh --uninstall --dry-run   # qué devolvería, sin tocar nada
 ./install.sh --uninstall
 ```
 
-Retira los ficheros del tema pero **no** revierte el `.zshrc` ni el acento de Windows,
-a propósito: para eso están los backups. El `.zshrc` original está en
-`~/.zshrc.bak-claude-*` y las claves de registro en `%USERPROFILE%\claude-theme-backup\`
-(doble clic en el `.reg` y restaura).
+Esto no borra a ojo: restaura un **snapshot** del estado original.
+
+La primera vez que el instalador va a tocar algo, apunta cómo estaba —
+el contenido íntegro de cada fichero, o la marca «no existía» si lo creamos nosotros;
+el tipo y el dato de cada valor de registro, o «no existía»; y una exportación completa
+de las claves de Windhawk, donde restaurar valor a valor no basta. Ese primer apunte
+manda: reinstalar mil veces no lo pisa, así que `--uninstall` siempre devuelve la máquina
+a como estaba **antes de conocer este repo**, no a la penúltima instalación.
+
+Vive en `~/.local/share/claude-terminal-theme/snapshot/` — bórralo y pierdes la marcha
+atrás. Lo de `HKLM` se junta en un solo `.reg` y pide una ventana de UAC.
+
+Además, cada fichero que se pisa deja un `.bak-claude-<timestamp>` al lado, por si
+prefieres mirarlo a mano.
 
 ## Origen
 

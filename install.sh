@@ -4,8 +4,9 @@
 #   ./install.sh              todo lo que detecte
 #   ./install.sh --shell      solo zsh
 #   ./install.sh --windows    solo Windows Terminal / VS Code / PowerShell / acento
+#                             / barra de tareas / dock de Windhawk
 #   ./install.sh --dry-run    enseña qué haría y no toca nada
-#   ./install.sh --uninstall  deshace lo que instaló
+#   ./install.sh --uninstall  devuelve todo al estado del snapshot original
 #
 # Idempotente: relanzarlo deja el mismo resultado.
 set -euo pipefail
@@ -67,6 +68,10 @@ install_shell() {
 
   say "ficheros del tema"
   run mkdir -p "$CUSTOM/themes"
+  # apuntamos cómo estaba cada destino ANTES de pisarlo
+  [[ $DRY -eq 0 ]] && python3 "$ROOT/lib/snap.py" \
+      "$CUSTOM/claude-00-palette.zsh" "$CUSTOM/claude-10-colors.zsh" \
+      "$CUSTOM/themes/claude.zsh-theme" "$ZSHRC"
   step "claude-00-palette.zsh (generado desde palette.json)"
   if [[ $DRY -eq 0 ]]; then
     python3 "$ROOT/lib/render.py" palette.zsh > "$CUSTOM/claude-00-palette.zsh"
@@ -87,36 +92,32 @@ install_shell() {
   fi
 }
 
-uninstall_shell() {
-  say "retirando ficheros del tema"
-  local f
-  for f in "$CUSTOM/claude-00-palette.zsh" "$CUSTOM/claude-10-colors.zsh" \
-           "$CUSTOM/claude-colors.zsh" "$CUSTOM/themes/claude.zsh-theme"; do
-    [[ -e "$f" ]] && { step "rm $(basename "$f")"; run rm -f "$f"; }
-  done
-  warn "el .zshrc no se toca: revisa ZSH_THEME y plugins, o restaura un .bak-claude-*"
-  warn "los plugins clonados se quedan en $CUSTOM/plugins (bórralos a mano si quieres)"
+# El uninstall no borra a mano: restaura el snapshot original, que sabe qué
+# ficheros existían y cuáles hay que quitar porque los creamos nosotros.
+uninstall_all() {
+  local args=(); [[ $DRY -eq 1 ]] && args+=(--dry-run)
+  python3 "$ROOT/lib/do_uninstall.py" "${args[@]}"
+  echo
+  warn "los plugins clonados se quedan en $CUSTOM/plugins (bórralos si quieres)"
 }
 
 # ── main ──────────────────────────────────────────────────────────────
 printf '%stema Claude CLI%s  %s%s%s\n\n' "$TEAL" "$OFF" "$GREY" \
   "$([[ $UNINSTALL -eq 1 ]] && echo desinstalar || echo instalar)$([[ $DRY -eq 1 ]] && echo ' (dry-run)')" "$OFF"
 
-if [[ $DO_SHELL -eq 1 ]]; then
-  if [[ $UNINSTALL -eq 1 ]]; then uninstall_shell; else install_shell; fi
-  echo
-fi
-
-if [[ $DO_WIN -eq 1 ]]; then
-  if [[ -d /mnt/c ]]; then
-    args=()
-    [[ $DRY -eq 1 ]] && args+=(--dry-run)
-    [[ $UNINSTALL -eq 1 ]] && args+=(--uninstall)
-    python3 "$ROOT/lib/apply_windows.py" "${args[@]}"
-  else
-    warn "no veo /mnt/c: salto la parte de Windows"
+if [[ $UNINSTALL -eq 1 ]]; then
+  uninstall_all
+else
+  if [[ $DO_SHELL -eq 1 ]]; then install_shell; echo; fi
+  if [[ $DO_WIN -eq 1 ]]; then
+    if [[ -d /mnt/c ]]; then
+      args=(); [[ $DRY -eq 1 ]] && args+=(--dry-run)
+      python3 "$ROOT/lib/apply_windows.py" "${args[@]}"
+    else
+      warn "no veo /mnt/c: salto la parte de Windows"
+    fi
+    echo
   fi
-  echo
 fi
 
 if [[ $UNINSTALL -eq 0 && $DRY -eq 0 && $DO_SHELL -eq 1 ]]; then
