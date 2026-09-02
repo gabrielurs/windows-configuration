@@ -273,6 +273,7 @@ def main():
         apply_ps(pal, home, ctx)
     if "accent" not in skip:
         apply_accent(pal, home, ctx)
+        desktop.broadcast_colorchange(ctx)
     if "taskbar" not in skip:
         restart |= desktop.apply_taskbar(ctx.snap, ctx, pal)
         ctx.note("barra de tareas")

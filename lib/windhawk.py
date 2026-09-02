@@ -31,6 +31,7 @@ NOTIF_MOD = "windows-11-notification-center-styler"
 START_MOD = "windows-11-start-menu-styler"
 STARTPOS_MOD = "taskbar-start-button-position"
 STARTICON_MOD = "start-button-replacer"
+BORDER_MOD = "win11-accent-border"
 MODS_KEY = r"HKLM\SOFTWARE\Windhawk\Engine\Mods"
 MODS_HIVE = r"HKEY_LOCAL_MACHINE\SOFTWARE\Windhawk\Engine\Mods"
 
@@ -235,6 +236,26 @@ def starticon_settings(pal: dict) -> dict[str, object]:
         "pressedEffects.pressedOpacity": 100,
         # si la imagen no carga, que se vea: es un fallo de instalación, no ruido
         "showImageLoadFailureWarnings": 1,
+    }
+
+
+# ── borde de la ventana activa ────────────────────────────────────────
+def border_settings(pal: dict) -> dict[str, object]:
+    """La ventana activa se distingue por el borde en el acento, no por
+    pintarle la barra de título — que es lo que pide la sección 06 del diseño.
+
+    El mod EXIGE que «Mostrar el color de acento en barras de título y bordes»
+    esté apagado, o sea `ColorPrevalence=0`. Coincide con lo que el diseño manda
+    dejar y con lo que ya escribe apply_accent, así que no hay nada que tocar.
+
+    Los colores no son ajustes del mod: el activo es siempre el acento
+    (`AccentColor`) y el inactivo sale de `AccentColorInactive`, ambos en
+    HKCU\...\DWM y ambos ya escritos desde la paleta.
+    """
+    return {
+        # solo para apps que se dibujan la ventana a mano; encenderlo sin
+        # necesidad les mete el borde donde no toca
+        "SpecialWindows": 0,
     }
 
 

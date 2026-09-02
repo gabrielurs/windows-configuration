@@ -142,7 +142,7 @@ def registry_values(p: dict) -> list[tuple[str, str, str, str]]:
         (A, "AccentColorMenu",       "REG_DWORD",  abgr(w["base"])),
         (A, "StartColorMenu",        "REG_DWORD",  abgr(w["start"])),
         (D, "AccentColor",           "REG_DWORD",  abgr(w["base"])),
-        (D, "AccentColorInactive",   "REG_DWORD",  abgr(w["start"])),
+        (D, "AccentColorInactive",   "REG_DWORD",  abgr(w.get("inactiveBorder", w["start"]))),
         (D, "ColorizationColor",     "REG_DWORD",  argb(w["base"], al)),
         (D, "ColorizationAfterglow", "REG_DWORD",  argb(w["base"], al)),
     ]

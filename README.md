@@ -185,12 +185,28 @@ defecto: `pressedImageSource` y `activatedImageSource` apuntan a unos GIF de un 
 alojados en GitHub, así que hay que escribirlos vacíos explícitamente — el `.reg` borra la
 subclave antes de reescribirla y lo que no se ponga vuelve al gecko.
 
+**La ventana activa.** La sección 06 la quiere distinguida por color sin pintarle la
+barra de título, y *Windows 11 Accent Window Border* hace justo eso: borde en el acento,
+y **exige** `ColorPrevalence=0`, que es lo que el diseño manda dejar. Activa en teal,
+inactiva en el gris de `windowsAccent.inactiveBorder`. La diferencia honesta: el diseño
+dibuja una línea de 1px *bajo el título* y esto es el borde completo de la ventana.
+
+Ese `inactiveBorder` va separado de `start` a propósito. Compartían valor, y con un teal
+apagado en la inactiva **todas** las ventanas acaban con borde teal — justo la señal que
+la sección 06 quiere transmitir, perdida.
+
+Y escribir el color no basta: quien lo usa ya lo tiene en memoria. El mod lo recarga con
+`WM_DWMCOLORIZATIONCOLORCHANGED` (0x0320) y con nada más — ni `WM_SETTINGCHANGE` con
+«ImmersiveColorSet» ni `UpdatePerUserSystemParameters`, ambos probados y ambos inútiles
+aquí. Por eso el instalador difunde ese mensaje después de escribir el acento; sin él, el
+borde se queda con el color anterior hasta el siguiente inicio de sesión.
+
 **Lo que el diseño pide y no se puede:** los iconos de app en monoespaciada (son los
 iconos reales de cada programa; el del acceso directo solo se ve mientras la app está
-cerrada), el indicador con el color de cada app (el styler no sabe qué app es cada botón,
-así que van todos en teal) y la línea teal bajo el título de la ventana activa (eso es
-DWM, no XAML). El propio diseño ya avisa de que los iconos por tipo de fichero del
-Explorador tampoco son nativos.
+cerrada) y el indicador con el color de cada app (el styler no sabe qué app es cada
+botón, así que van todos en teal). El propio diseño ya avisa de que los iconos por tipo
+de fichero del Explorador tampoco son nativos — y de que su lista tipo `ls -la` es dibujo,
+no Explorador.
 
 En cambio el diseño se equivoca en tres puntos a favor: daba por hecho que cpu/ram exigían
 TrafficMonitor o un script propio —el mod del reloj trae `%cpu%` y `%ram%` de serie—, la

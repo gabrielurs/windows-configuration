@@ -89,7 +89,9 @@
       "#0E2E2B",
       "#F2A35E"
     ],
-    "colorizationAlpha": "C4"
+    "colorizationAlpha": "C4",
+    "inactiveBorder": "#3A444E",
+    "_inactiveNote": "Borde de la ventana INACTIVA, para win11-accent-border. Separado de `start` a proposito: si el inactivo tambien es teal, todas las ventanas llevan borde teal y se pierde la senal de cual esta activa, que es justo lo que el diseno pide distinguir."
   },
   "font": {
     "face": "Cascadia Code",

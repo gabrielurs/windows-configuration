@@ -137,7 +137,7 @@ def _vscode_exe() -> str | None:
 
 
 def apply_context_menu(snap: state.Snapshot, ctx, remove: bool = False) -> bool:
-    """«Abrir con Code» en carpetas y en el fondo de carpeta.
+    r"""«Abrir con Code» en carpetas y en el fondo de carpeta.
 
     Va a HKCU\Software\Classes, no a HKCR, para no necesitar elevación.
     «Abrir en Terminal» ya lo pone Windows 11 por su cuenta, así que no se toca.
@@ -233,6 +233,35 @@ def apply_pinned_icons(pal: dict, snap: state.Snapshot, ctx, win_home, remove: b
     return changed
 
 
+def broadcast_colorchange(ctx) -> None:
+    """Avisar de que el acento cambió, para que se relea sin reiniciar sesión.
+
+    Escribir `AccentColor` y `AccentColorInactive` en el registro no basta: quien
+    los usa ya los tiene en memoria. `win11-accent-border` los recarga en
+    WM_DWMCOLORIZATIONCOLORCHANGED (0x0320) y en nada más — ni WM_SETTINGCHANGE
+    con «ImmersiveColorSet» ni UpdatePerUserSystemParameters lo despiertan,
+    ambos probados. Sin este aviso, el borde se queda con el color anterior
+    hasta el siguiente inicio de sesión.
+    """
+    if ctx.dry:
+        ctx.say("difundiendo WM_DWMCOLORIZATIONCOLORCHANGED")
+        return
+    ps = (
+        'Add-Type @"\n'
+        'using System;using System.Runtime.InteropServices;\n'
+        'public class B{[DllImport("user32.dll")] public static extern IntPtr '
+        'SendMessageTimeout(IntPtr h,uint m,IntPtr w,IntPtr l,uint f,uint t,out IntPtr r);}\n'
+        '"@\n'
+        '$r=[IntPtr]::Zero\n'
+        '[void][B]::SendMessageTimeout([IntPtr]0xffff,0x0320,[IntPtr]::Zero,'
+        '[IntPtr]::Zero,2,4000,[ref]$r)\n'
+    )
+    r = subprocess.run(["powershell.exe", "-NoProfile", "-Command", ps],
+                       capture_output=True, cwd="/mnt/c")
+    ctx.say("acento difundido" if r.returncode == 0 else
+            "! no se pudo difundir el cambio de acento; se verá al reiniciar sesión")
+
+
 def apply_windhawk(pal: dict, snap: state.Snapshot, ctx, win_home, remove: bool = False) -> bool:
     print("· Windhawk (barra, Inicio, reloj, Explorador y notificaciones)")
     if not pathlib.Path("/mnt/c/Program Files/Windhawk").is_dir():
@@ -240,8 +269,8 @@ def apply_windhawk(pal: dict, snap: state.Snapshot, ctx, win_home, remove: bool 
         return False
 
     wanted = (windhawk.TASKBAR_MOD, windhawk.START_MOD, windhawk.STARTPOS_MOD,
-              windhawk.STARTICON_MOD, windhawk.CLOCK_MOD, windhawk.EXPLORER_MOD,
-              windhawk.COLUMNS_MOD, windhawk.NOTIF_MOD)
+              windhawk.STARTICON_MOD, windhawk.BORDER_MOD, windhawk.CLOCK_MOD,
+              windhawk.EXPLORER_MOD, windhawk.COLUMNS_MOD, windhawk.NOTIF_MOD)
     missing = [m for m in wanted if not windhawk.installed(m)]
     if missing:
         # No se puede instalar un mod desde fuera: Windhawk los compila en local
@@ -278,6 +307,7 @@ def apply_windhawk(pal: dict, snap: state.Snapshot, ctx, win_home, remove: bool 
         windhawk.START_MOD:    windhawk.start_settings,
         windhawk.STARTPOS_MOD: windhawk.startpos_settings,
         windhawk.STARTICON_MOD: windhawk.starticon_settings,
+        windhawk.BORDER_MOD:    windhawk.border_settings,
         windhawk.CLOCK_MOD:    windhawk.clock_settings,
         windhawk.EXPLORER_MOD: windhawk.explorer_settings,
         windhawk.COLUMNS_MOD:  windhawk.columns_settings,
