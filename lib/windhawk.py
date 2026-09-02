@@ -30,6 +30,7 @@ COLUMNS_MOD = "explorer-force-details-columns"
 NOTIF_MOD = "windows-11-notification-center-styler"
 START_MOD = "windows-11-start-menu-styler"
 STARTPOS_MOD = "taskbar-start-button-position"
+STARTICON_MOD = "start-button-replacer"
 MODS_KEY = r"HKLM\SOFTWARE\Windhawk\Engine\Mods"
 MODS_HIVE = r"HKEY_LOCAL_MACHINE\SOFTWARE\Windhawk\Engine\Mods"
 
@@ -204,6 +205,36 @@ def startpos_settings(pal: dict) -> dict[str, object]:
         "otherSystemButtonsOnTheLeft": 1 if t.get("systemButtonsLeft", True) else 0,
         "startMenuOnTheLeft": 1,
         "searchMenuPositionInAllCases": 0,
+    }
+
+
+# ── icono del botón Inicio ────────────────────────────────────────────
+def starticon_settings(pal: dict) -> dict[str, object]:
+    """El asterisco de Claude en el botón de Inicio.
+
+    Las CUATRO rutas de imagen se escriben aunque tres vayan vacías. El mod
+    trae por defecto unos GIF de un gecko alojados en GitHub para los estados
+    pressed y activated; como el .reg borra la subclave antes de reescribirla,
+    lo que no se ponga vuelve a ese default y aparece el bicho al pulsar
+    Inicio. Vacías significa «usa la normal», que es lo que queremos.
+    """
+    sb = pal["windowsDesktop"].get("startButton", {})
+    src = r"%LOCALAPPDATA%\claude-terminal-theme\icons\start-claude.png"
+    return {
+        "images.imageSource": src,
+        "images.hoverImageSource": "",
+        "images.pressedImageSource": "",
+        "images.activatedImageSource": "",
+        "images.iconSize": int(sb.get("iconSize", 24)),
+        # sin rotación: el botón de Inicio de un tema sobrio no da tumbos
+        "hoverEffects.hoverScale": 110,
+        "hoverEffects.hoverRotation": 0,
+        "hoverEffects.hoverOpacity": 100,
+        "pressedEffects.pressedScale": 94,
+        "pressedEffects.pressedRotation": 0,
+        "pressedEffects.pressedOpacity": 100,
+        # si la imagen no carga, que se vea: es un fallo de instalación, no ruido
+        "showImageLoadFailureWarnings": 1,
     }
 
 

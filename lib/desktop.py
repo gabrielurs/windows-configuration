@@ -240,14 +240,23 @@ def apply_windhawk(pal: dict, snap: state.Snapshot, ctx, win_home, remove: bool 
         return False
 
     wanted = (windhawk.TASKBAR_MOD, windhawk.START_MOD, windhawk.STARTPOS_MOD,
-              windhawk.CLOCK_MOD, windhawk.EXPLORER_MOD, windhawk.COLUMNS_MOD,
-              windhawk.NOTIF_MOD)
+              windhawk.STARTICON_MOD, windhawk.CLOCK_MOD, windhawk.EXPLORER_MOD,
+              windhawk.COLUMNS_MOD, windhawk.NOTIF_MOD)
     missing = [m for m in wanted if not windhawk.installed(m)]
     if missing:
         # No se puede instalar un mod desde fuera: Windhawk los compila en local
         # desde su interfaz y no expone CLI. Se configura lo que haya y se avisa.
         ctx.say("no instalados, los salto (instálalos en Windhawk): " + ", ".join(missing))
     wanted = tuple(m for m in wanted if windhawk.installed(m))
+
+    if windhawk.STARTICON_MOD in wanted:
+        import icons
+        icon_dir = win_home / "AppData/Local/claude-terminal-theme/icons"
+        if ctx.dry:
+            ctx.say(f"asterisco de Inicio en {icon_dir}/start-claude.png")
+        else:
+            snap.capture_file(icon_dir / "start-claude.png")
+            ctx.say(f"asterisco de Inicio → {icons.build_start(pal, icon_dir).name}")
     if not wanted:
         return False
     off = [m for m in wanted if windhawk.enabled(m) is False]
@@ -268,6 +277,7 @@ def apply_windhawk(pal: dict, snap: state.Snapshot, ctx, win_home, remove: bool 
         windhawk.TASKBAR_MOD:  windhawk.taskbar_settings,
         windhawk.START_MOD:    windhawk.start_settings,
         windhawk.STARTPOS_MOD: windhawk.startpos_settings,
+        windhawk.STARTICON_MOD: windhawk.starticon_settings,
         windhawk.CLOCK_MOD:    windhawk.clock_settings,
         windhawk.EXPLORER_MOD: windhawk.explorer_settings,
         windhawk.COLUMNS_MOD:  windhawk.columns_settings,

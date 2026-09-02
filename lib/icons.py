@@ -100,6 +100,48 @@ def make_ico(glyph: str, hex_color: str, out: pathlib.Path,
     return out
 
 
+def asterisk_png(hex_color: str, out: pathlib.Path, size: int = 256,
+                 spokes: int = 12, reach: float = 0.46, shoulder: float = 0.16,
+                 waist: float = 0.050, tip: float = 0.016) -> pathlib.Path:
+    """El asterisco de Claude para el botón de Inicio.
+
+    Dibujado, no sacado de una fuente: a 24 px un glifo tipográfico sale fino y
+    descentrado, porque la caja de la fuente no es la caja del dibujo.
+
+    Doce brazos y no ocho, y con la punta roma en vez de en pico: probadas las
+    cuatro variantes al tamaño REAL del botón, las de pocas puntas afiladas se
+    deshacen en púas y leen como estrella de brújula. Con doce y el hombro
+    ancho queda un núcleo sólido que aguanta el downscale.
+
+    Se pinta a 4x y se baja con LANCZOS porque PIL no antialiasa polígonos.
+    """
+    from PIL import Image, ImageDraw
+    import math
+
+    ss = 4                                  # supersampling
+    n = size * ss
+    im = Image.new("RGBA", (n, n), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    c = n / 2
+    fill = render.rgb(hex_color) + (255,)
+
+    for i in range(spokes):
+        a = 2 * math.pi * i / spokes
+        ca, sa = math.cos(a), math.sin(a)
+
+        def at(r, off):
+            """polar → cartesiano, con `off` perpendicular al brazo"""
+            return (c + r * n * ca - off * n * sa,
+                    c + r * n * sa + off * n * ca)
+
+        d.polygon([at(reach, tip), at(shoulder, waist), at(0, 0),
+                   at(shoulder, -waist), at(reach, -tip)], fill=fill)
+
+    out.parent.mkdir(parents=True, exist_ok=True)
+    im.resize((size, size), Image.LANCZOS).save(out, format="PNG")
+    return out
+
+
 def build_all(pal: dict, outdir: pathlib.Path) -> dict[str, pathlib.Path]:
     """Un .ico por app conocida. Devuelve {nombre de app: ruta}."""
     made = {}
@@ -110,8 +152,17 @@ def build_all(pal: dict, outdir: pathlib.Path) -> dict[str, pathlib.Path]:
     return made
 
 
+def build_start(pal: dict, outdir: pathlib.Path) -> pathlib.Path:
+    """El asterisco del botón de Inicio, en PNG porque es lo que come el mod."""
+    sb = pal["windowsDesktop"].get("startButton", {})
+    return asterisk_png(pal["roles"][sb.get("role", "amber")]["hex"],
+                        outdir / "start-claude.png",
+                        spokes=int(sb.get("spokes", 12)))
+
+
 if __name__ == "__main__":
     pal = render.load()
     out = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else render.ROOT / "windows/icons"
     for app, path in build_all(pal, out).items():
         print(f"  {app:22} → {path.name}")
+    print(f"  {'botón de Inicio':22} → {build_start(pal, out).name}")

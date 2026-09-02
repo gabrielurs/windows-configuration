@@ -160,17 +160,35 @@ Lo mantiene vivo una unit de systemd de usuario. Sin systemd en la WSL, el insta
 avisa y te deja lanzarlo a mano; si el servicio se cae, `%web1%` sale vacío y el reloj
 queda exactamente como antes.
 
-**Lo que el diseño pide y no se puede:** el icono del botón de Inicio (solo su fondo es
-estilizable, el logo no — aunque *Start Button Replacer* sí lo cambia por un PNG propio,
-si lo instalas), los iconos de app en monoespaciada (son los iconos reales de cada
-programa), el indicador con el color de cada app (el styler no sabe qué app es cada
-botón, así que van todos en teal) y la línea teal bajo el título de la ventana activa
-(eso es DWM, no XAML). El propio diseño ya avisa de que los iconos por tipo de fichero
-del Explorador tampoco son nativos.
+**El botón de Inicio.** El styler solo llega al fondo del botón, no al logo — pero
+*Start Button Replacer* cambia la imagen entera por un PNG propio, así que ahí va el
+asterisco de Claude en ámbar. Se dibuja en `lib/icons.py`, no sale de una fuente: a 24 px
+un glifo tipográfico queda fino y descentrado, porque la caja de la fuente no es la caja
+del dibujo. Doce brazos con la punta roma, elegidos comparando las variantes al tamaño
+real — con pocas puntas afiladas se deshace en púas y lee como estrella de brújula.
 
-En cambio el diseño se equivoca en dos puntos a favor: daba por hecho que cpu/ram exigían
-TrafficMonitor o un script propio —el mod del reloj trae `%cpu%` y `%ram%` de serie— y la
-rama de git parecía imposible hasta mirar que el reloj hace peticiones HTTP.
+Ese mod **no aparece en el catálogo** de windhawk.net ni en la pestaña Explore, aunque su
+página existe. Se instala pegando el fuente en *Create new mod*. Y ojo con sus valores por
+defecto: `pressedImageSource` y `activatedImageSource` apuntan a unos GIF de un gecko
+alojados en GitHub, así que hay que escribirlos vacíos explícitamente — el `.reg` borra la
+subclave antes de reescribirla y lo que no se ponga vuelve al gecko.
+
+**Lo que el diseño pide y no se puede:** los iconos de app en monoespaciada (son los
+iconos reales de cada programa; el del acceso directo solo se ve mientras la app está
+cerrada), el indicador con el color de cada app (el styler no sabe qué app es cada botón,
+así que van todos en teal) y la línea teal bajo el título de la ventana activa (eso es
+DWM, no XAML). El propio diseño ya avisa de que los iconos por tipo de fichero del
+Explorador tampoco son nativos.
+
+En cambio el diseño se equivoca en tres puntos a favor: daba por hecho que cpu/ram exigían
+TrafficMonitor o un script propio —el mod del reloj trae `%cpu%` y `%ram%` de serie—, la
+rama de git parecía imposible hasta mirar que el reloj hace peticiones HTTP, y el logo de
+Inicio resultó cambiable.
+
+**Y un punto donde el diseño no sobrevive al uso:** pedía «nunca combinar botones», que en
+Windows implica una etiqueta pegada a cada icono. Con diez ventanas abiertas son diez
+títulos truncados comiéndose la barra entera, así que `combineButtons` va en `always` —
+un icono por app. `whenFull` y `never` siguen ahí si los quieres.
 
 ## ¿Y sin Windhawk?
 

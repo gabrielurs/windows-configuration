@@ -162,6 +162,12 @@
       "maxLength": 16,
       "stateFile": "${XDG_STATE_HOME:-~/.local/state}/claude-terminal-theme/repo",
       "_rootsNote": "roots/depth solo se usan de reserva, cuando el tema zsh no ha escrito stateFile todavia: entonces gana el repo con la mtime mas nueva."
+    },
+    "startButton": {
+      "_comment": "El asterisco de Claude en el boton de Inicio, via Start Button Replacer. Se dibuja (lib/icons.py:asterisk_png), no sale de una fuente: a este tamano un glifo tipografico queda fino y descentrado.",
+      "role": "amber",
+      "spokes": 12,
+      "iconSize": 24
     }
   }
 }
