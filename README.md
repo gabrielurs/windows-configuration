@@ -162,10 +162,22 @@ queda exactamente como antes.
 
 **El botón de Inicio.** El styler solo llega al fondo del botón, no al logo — pero
 *Start Button Replacer* cambia la imagen entera por un PNG propio, así que ahí va el
-asterisco de Claude en ámbar. Se dibuja en `lib/icons.py`, no sale de una fuente: a 24 px
-un glifo tipográfico queda fino y descentrado, porque la caja de la fuente no es la caja
-del dibujo. Doce brazos con la punta roma, elegidos comparando las variantes al tamaño
-real — con pocas puntas afiladas se deshace en púas y lee como estrella de brújula.
+`❯` teal del diseño, generado por `lib/icons.py` con la misma fuente monoespaciada que
+el resto de glifos. El fondo —el tinte teal al 10%— lo sigue poniendo el styler de la
+barra, no el PNG, que va con alfa.
+
+Ojo con confundirlo: el `✦` ámbar es el icono de **Claude**, no el del botón de Inicio.
+Los siete glifos salen del diseño y no de la intuición:
+
+| | glifo | rol |
+|---|---|---|
+| botón de Inicio | `❯` | teal |
+| Terminal / Ubuntu | `$_` | verde |
+| Archivos | `▤` | teal |
+| VS Code | `◈` | azul |
+| Navegador | `◉` | morado |
+| Claude | `✦` | ámbar |
+| Ajustes | `⚙` | gris |
 
 Ese mod **no aparece en el catálogo** de windhawk.net ni en la pestaña Explore, aunque su
 página existe. Se instala pegando el fuente en *Create new mod*. Y ojo con sus valores por

@@ -25,11 +25,16 @@ SIZES = (16, 20, 24, 32, 40, 48, 64, 128, 256)
 APPS = {
     "File Explorer": ("▤", "teal"),
     "Google Chrome": ("◉", "purple"),
-    "Windows Terminal": ("❯", "green"),
+    "Windows Terminal": ("$_", "green"),
     "Visual Studio Code": ("◈", "blue"),
     "Claude": ("✦", "amber"),
-    "Ubuntu": ("❯", "green"),
+    "Ubuntu": ("$_", "green"),
+    "Settings": ("⚙", "grey"),
 }
+
+# El botón de Inicio va aparte: el diseño le da el chevron del prompt en teal,
+# no el ✦ ámbar — ese es el icono de Claude.
+START_GLYPH = ("❯", "teal")
 
 # Ojo: NO vale comprobar la cobertura con `font.getmask(g).getbbox()`. El glifo
 # ausente se dibuja como un rectángulo, que también tiene caja, así que esa
@@ -100,45 +105,32 @@ def make_ico(glyph: str, hex_color: str, out: pathlib.Path,
     return out
 
 
-def asterisk_png(hex_color: str, out: pathlib.Path, size: int = 256,
-                 spokes: int = 12, reach: float = 0.46, shoulder: float = 0.16,
-                 waist: float = 0.050, tip: float = 0.016) -> pathlib.Path:
-    """El asterisco de Claude para el botón de Inicio.
+def glyph_png(glyph: str, hex_color: str, out: pathlib.Path,
+              size: int = 256, fill: float = 0.60) -> pathlib.Path:
+    """Un glifo suelto en PNG con fondo transparente, para el botón de Inicio.
 
-    Dibujado, no sacado de una fuente: a 24 px un glifo tipográfico sale fino y
-    descentrado, porque la caja de la fuente no es la caja del dibujo.
-
-    Doce brazos y no ocho, y con la punta roma en vez de en pico: probadas las
-    cuatro variantes al tamaño REAL del botón, las de pocas puntas afiladas se
-    deshacen en púas y leen como estrella de brújula. Con doce y el hombro
-    ancho queda un núcleo sólido que aguanta el downscale.
-
-    Se pinta a 4x y se baja con LANCZOS porque PIL no antialiasa polígonos.
+    Sin la caja redondeada de `make_ico`: ahí el fondo lo pinta el styler de la
+    barra —el tinte teal al 10% del diseño— y meterlo también aquí lo duplica.
     """
-    from PIL import Image, ImageDraw
-    import math
-
-    ss = 4                                  # supersampling
-    n = size * ss
-    im = Image.new("RGBA", (n, n), (0, 0, 0, 0))
+    from PIL import Image, ImageDraw, ImageFont
+    font_path = _font_path(glyph)
+    im = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
-    c = n / 2
-    fill = render.rgb(hex_color) + (255,)
 
-    for i in range(spokes):
-        a = 2 * math.pi * i / spokes
-        ca, sa = math.cos(a), math.sin(a)
-
-        def at(r, off):
-            """polar → cartesiano, con `off` perpendicular al brazo"""
-            return (c + r * n * ca - off * n * sa,
-                    c + r * n * sa + off * n * ca)
-
-        d.polygon([at(reach, tip), at(shoulder, waist), at(0, 0),
-                   at(shoulder, -waist), at(reach, -tip)], fill=fill)
+    pt = size
+    while pt > 8:
+        f = ImageFont.truetype(font_path, pt)
+        b = d.textbbox((0, 0), glyph, font=f)
+        if (b[2] - b[0]) <= size * fill and (b[3] - b[1]) <= size * fill:
+            break
+        pt -= 2
+    f = ImageFont.truetype(font_path, pt)
+    b = d.textbbox((0, 0), glyph, font=f)
+    d.text(((size - (b[2] - b[0])) / 2 - b[0], (size - (b[3] - b[1])) / 2 - b[1]),
+           glyph, font=f, fill=render.rgb(hex_color) + (255,))
 
     out.parent.mkdir(parents=True, exist_ok=True)
-    im.resize((size, size), Image.LANCZOS).save(out, format="PNG")
+    im.save(out, format="PNG")
     return out
 
 
@@ -153,11 +145,12 @@ def build_all(pal: dict, outdir: pathlib.Path) -> dict[str, pathlib.Path]:
 
 
 def build_start(pal: dict, outdir: pathlib.Path) -> pathlib.Path:
-    """El asterisco del botón de Inicio, en PNG porque es lo que come el mod."""
+    """El glifo del botón de Inicio, en PNG porque es lo que come el mod."""
     sb = pal["windowsDesktop"].get("startButton", {})
-    return asterisk_png(pal["roles"][sb.get("role", "amber")]["hex"],
-                        outdir / "start-claude.png",
-                        spokes=int(sb.get("spokes", 12)))
+    glyph, role = START_GLYPH
+    return glyph_png(sb.get("glyph", glyph),
+                     pal["roles"][sb.get("role", role)]["hex"],
+                     outdir / "start-claude.png")
 
 
 if __name__ == "__main__":

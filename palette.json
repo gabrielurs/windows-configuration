@@ -164,9 +164,9 @@
       "_rootsNote": "roots/depth solo se usan de reserva, cuando el tema zsh no ha escrito stateFile todavia: entonces gana el repo con la mtime mas nueva."
     },
     "startButton": {
-      "_comment": "El asterisco de Claude en el boton de Inicio, via Start Button Replacer. Se dibuja (lib/icons.py:asterisk_png), no sale de una fuente: a este tamano un glifo tipografico queda fino y descentrado.",
-      "role": "amber",
-      "spokes": 12,
+      "_comment": "El boton de Inicio, via Start Button Replacer. El diseno le da el chevron del prompt en teal — el asterisco ambar es el icono de Claude, no este.",
+      "glyph": "❯",
+      "role": "teal",
       "iconSize": 24
     }
   }
