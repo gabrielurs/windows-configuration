@@ -1,0 +1,17 @@
+{
+  "_comment": "Los mods de Windhawk que pide el tema. El `id` es lo que va en la URL y en el registro; `name` es lo ÚNICO que encuentra el buscador de la pestaña Explore. Confundirlos cuesta un rato: buscar «taskbar-start-button-position» no da nada.",
+  "_catalogNote": "catalog:false = tiene página propia pero NO sale en el listado de windhawk.net ni en Explore. Se instala pegando su fuente en «Create new mod».",
+  "mods": [
+    { "id": "windows-11-taskbar-styler",           "name": "Windows 11 Taskbar Styler",            "que": "forma y color de la barra" },
+    { "id": "windows-11-start-menu-styler",        "name": "Windows 11 Start Menu Styler",         "que": "menú Inicio a juego" },
+    { "id": "taskbar-start-button-position",       "name": "Start button always on the left",      "que": "Inicio a la izquierda, apps centradas" },
+    { "id": "start-button-replacer",               "name": "Start Button Replacer",                "que": "el chevron teal en el botón de Inicio",
+      "catalog": false,
+      "source": "https://raw.githubusercontent.com/ramensoftware/windhawk-mods/main/mods/start-button-replacer.wh.cpp" },
+    { "id": "win11-accent-border",                 "name": "Windows 11 Accent Window Border",      "que": "borde teal en la ventana activa" },
+    { "id": "taskbar-clock-customization",         "name": "Taskbar Clock Customization",          "que": "reloj de dos líneas con cpu/ram y la rama de git" },
+    { "id": "windows-11-file-explorer-styler",     "name": "Windows 11 File Explorer Styler",      "que": "grises del Explorador" },
+    { "id": "explorer-force-details-columns",      "name": "Explorer Details View Columns",        "que": "las cuatro columnas del diseño" },
+    { "id": "windows-11-notification-center-styler","name": "Windows 11 Notification Center Styler","que": "centro de notificaciones" }
+  ]
+}

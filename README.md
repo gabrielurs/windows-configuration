@@ -248,11 +248,33 @@ Lo que sí viaja bien:
 - **ningún secreto en el repo**: el `GITHUB_TOKEN` de la capa de dotfiles se deriva
   de `gh auth token` en cada arranque en vez de guardarse
 
-Lo único que **no se puede automatizar**: los mods de Windhawk. Windhawk los compila
-en local desde su interfaz y no expone CLI. El instalador instala Windhawk con winget,
-detecta si faltan los mods y te dice cuáles, pero ponerlos son dos clics tuyos en
-[windhawk.net/mods](https://windhawk.net/mods). Sin ellos el resto se aplica igual;
-solo te quedas sin dock flotante.
+### El único paso manual: los nueve mods
+
+Windhawk compila los mods en local desde su interfaz y **no expone CLI**, así que no hay
+forma de instalarlos desde fuera. El instalador pone Windhawk con winget, detecta cuáles
+faltan y los lista — pero ponerlos son clics tuyos.
+
+Ese listado no es un volcado de ids, y la razón importa: **la pestaña Explore de Windhawk
+busca por nombre, no por id**. Buscar `taskbar-start-button-position` no devuelve nada;
+el mod se llama *«Start button always on the left»*. Por eso `windows/mods.json` guarda
+las dos cosas, y el instalador imprime el nombre buscable, para qué sirve y la URL
+directa. Si añades un mod al código y olvidas su ficha, el instalador **falla en el
+sitio** en vez de dejar a la siguiente máquina adivinando.
+
+Uno de los nueve, *Start Button Replacer*, **no aparece en el catálogo** de windhawk.net
+ni en Explore, aunque su página existe. Ese va por *Create new mod* pegando el fuente; el
+instalador te da la URL cruda. No lo vendorizo en el repo porque es GPL-3.0 y esto es MIT.
+
+Sin los mods, el resto se aplica igual: colores, acento, barra por registro, iconos,
+menú contextual y la rama de git. Lo que te falta es la forma y el color.
+
+### Lo que el instalador sí resuelve solo
+
+`bootstrap.sh` va de una WSL recién hecha al tema completo en un comando, sin git
+—se baja el tarball con el mismo `curl` que lo trajo— e instala lo que falte: zsh,
+oh-my-zsh, los plugins, Windhawk. El servicio de la rama de git se genera desde una
+plantilla con la ruta real del repo y se engancha a systemd. Y `--dry-run` te enseña la
+lista entera de cambios sin tocar nada, que es la forma sensata de estrenar máquina.
 
 ## La capa de dotfiles
 

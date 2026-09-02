@@ -21,7 +21,9 @@ Ojo con los selectores: el botón de Inicio se localiza por
 Name está traducido y en un Windows en español no casaría nunca.
 """
 from __future__ import annotations
-import pathlib, subprocess, time
+import json, pathlib, subprocess, time
+
+MANIFEST = pathlib.Path(__file__).resolve().parent.parent / "windows/mods.json"
 
 TASKBAR_MOD = "windows-11-taskbar-styler"
 CLOCK_MOD = "taskbar-clock-customization"
@@ -34,6 +36,36 @@ STARTICON_MOD = "start-button-replacer"
 BORDER_MOD = "win11-accent-border"
 MODS_KEY = r"HKLM\SOFTWARE\Windhawk\Engine\Mods"
 MODS_HIVE = r"HKEY_LOCAL_MACHINE\SOFTWARE\Windhawk\Engine\Mods"
+
+
+def catalog() -> dict[str, dict]:
+    """{id: entrada} de windows/mods.json."""
+    data = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    return {m["id"]: m for m in data["mods"]}
+
+
+def missing_report(ids) -> list[str]:
+    """Qué decirle a alguien que acaba de clonar esto en otra máquina.
+
+    El id NO sirve para buscar: la pestaña Explore de Windhawk busca por nombre,
+    y «taskbar-start-button-position» no devuelve nada. Así que se imprime el
+    nombre —lo único que encuentra— y la URL, que sí lleva el id.
+    """
+    cat = catalog()
+    out = []
+    for i in ids:
+        m = cat.get(i)
+        if not m:
+            out.append(f"  {i}  (sin ficha en windows/mods.json)")
+            continue
+        out.append(f"  «{m['name']}» — {m['que']}")
+        if m.get("catalog", True):
+            out.append(f"      https://windhawk.net/mods/{i}")
+        else:
+            out.append("      no sale en el catálogo ni en Explore: "
+                       "Windhawk → Create new mod → pega este fuente")
+            out.append(f"      {m['source']}")
+    return out
 
 
 def argb(hex_: str, alpha: str = "FF") -> str:
@@ -241,7 +273,7 @@ def starticon_settings(pal: dict) -> dict[str, object]:
 
 # ── borde de la ventana activa ────────────────────────────────────────
 def border_settings(pal: dict) -> dict[str, object]:
-    """La ventana activa se distingue por el borde en el acento, no por
+    r"""La ventana activa se distingue por el borde en el acento, no por
     pintarle la barra de título — que es lo que pide la sección 06 del diseño.
 
     El mod EXIGE que «Mostrar el color de acento en barras de título y bordes»

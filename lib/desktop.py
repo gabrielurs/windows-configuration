@@ -271,11 +271,21 @@ def apply_windhawk(pal: dict, snap: state.Snapshot, ctx, win_home, remove: bool 
     wanted = (windhawk.TASKBAR_MOD, windhawk.START_MOD, windhawk.STARTPOS_MOD,
               windhawk.STARTICON_MOD, windhawk.BORDER_MOD, windhawk.CLOCK_MOD,
               windhawk.EXPLORER_MOD, windhawk.COLUMNS_MOD, windhawk.NOTIF_MOD)
+    # El manifiesto y el código no pueden divergir en silencio: si añades un mod
+    # aquí y olvidas su ficha, el que instale esto en otra máquina se queda sin
+    # saber cómo se llama en el buscador.
+    sin_ficha = [m for m in wanted if m not in windhawk.catalog()]
+    if sin_ficha:
+        raise SystemExit("sin ficha en windows/mods.json: " + ", ".join(sin_ficha))
+
     missing = [m for m in wanted if not windhawk.installed(m)]
     if missing:
         # No se puede instalar un mod desde fuera: Windhawk los compila en local
-        # desde su interfaz y no expone CLI. Se configura lo que haya y se avisa.
-        ctx.say("no instalados, los salto (instálalos en Windhawk): " + ", ".join(missing))
+        # desde su interfaz y no expone CLI. Se configura lo que haya y se avisa
+        # con el nombre buscable, que es lo único que sirve en la pestaña Explore.
+        ctx.say(f"faltan {len(missing)} de {len(wanted)} mods; configuro el resto")
+        for line in windhawk.missing_report(missing):
+            print(line)
     wanted = tuple(m for m in wanted if windhawk.installed(m))
 
     if windhawk.STARTICON_MOD in wanted:
