@@ -28,10 +28,17 @@ TASKBAR = [
     (ADVANCED, "ShowTaskViewButton",   "REG_DWORD", "0", "sin vista de tareas"),
     (ADVANCED, "TaskbarDa",            "REG_DWORD", "0", "sin widgets"),
     (ADVANCED, "TaskbarMn",            "REG_DWORD", "0", "sin chat"),
-    (ADVANCED, "TaskbarGlomLevel",     "REG_DWORD", "2", "nunca combinar botones"),
-    (ADVANCED, "MMTaskbarGlomLevel",   "REG_DWORD", "2", "ídem en pantallas secundarias"),
     (SEARCH,   "SearchboxTaskbarMode", "REG_DWORD", "1", "búsqueda reducida a icono"),
 ]
+
+# Combinar botones. El diseño pide «nunca combinar», que en Windows implica
+# etiqueta al lado de cada icono — y con diez ventanas abiertas eso son diez
+# títulos truncados ocupando la barra entera. `always` deja solo el icono.
+GLOM = {
+    "always":   ("0", "un icono por app, sin etiqueta"),
+    "whenFull": ("1", "combina solo cuando la barra se llena"),
+    "never":    ("2", "nunca combinar: cada ventana con su etiqueta"),
+}
 
 # El Explorador: lo que el propio diseño reconoce como alcanzable de forma
 # nativa — compacto, extensiones a la vista, ocultos visibles pero apagados.
@@ -73,13 +80,22 @@ def _autohide_blob(cur: str, on: bool) -> str:
     return b.hex().upper()
 
 
-def apply_taskbar(snap: state.Snapshot, ctx, remove: bool = False) -> bool:
+def apply_taskbar(snap: state.Snapshot, ctx, pal: dict,
+                  remove: bool = False) -> bool:
     """Devuelve True si algo cambió (y por tanto hay que reiniciar explorer)."""
     if remove:
         return False
     print("· barra de tareas y Explorador (HKCU)")
+    mode = pal["windowsDesktop"]["taskbar"].get("combineButtons", "always")
+    if mode not in GLOM:
+        raise SystemExit(f"combineButtons: «{mode}» no vale; usa {sorted(GLOM)}")
+    glom, glom_why = GLOM[mode]
+    values = TASKBAR + [
+        (ADVANCED, "TaskbarGlomLevel",   "REG_DWORD", glom, glom_why),
+        (ADVANCED, "MMTaskbarGlomLevel", "REG_DWORD", glom, "ídem en pantallas secundarias"),
+    ] + EXPLORER + START
     touched = False
-    for key, name, typ, data, why in TASKBAR + EXPLORER + START:
+    for key, name, typ, data, why in values:
         cur = state.read_reg(key, name)
         snap.capture_reg(key, name)
         if cur and _same(typ, cur[1], data):
@@ -223,8 +239,9 @@ def apply_windhawk(pal: dict, snap: state.Snapshot, ctx, win_home, remove: bool 
         ctx.say("Windhawk no está instalado, salto")
         return False
 
-    wanted = (windhawk.TASKBAR_MOD, windhawk.START_MOD, windhawk.CLOCK_MOD,
-              windhawk.EXPLORER_MOD, windhawk.COLUMNS_MOD, windhawk.NOTIF_MOD)
+    wanted = (windhawk.TASKBAR_MOD, windhawk.START_MOD, windhawk.STARTPOS_MOD,
+              windhawk.CLOCK_MOD, windhawk.EXPLORER_MOD, windhawk.COLUMNS_MOD,
+              windhawk.NOTIF_MOD)
     missing = [m for m in wanted if not windhawk.installed(m)]
     if missing:
         # No se puede instalar un mod desde fuera: Windhawk los compila en local
@@ -250,6 +267,7 @@ def apply_windhawk(pal: dict, snap: state.Snapshot, ctx, win_home, remove: bool 
     builders = {
         windhawk.TASKBAR_MOD:  windhawk.taskbar_settings,
         windhawk.START_MOD:    windhawk.start_settings,
+        windhawk.STARTPOS_MOD: windhawk.startpos_settings,
         windhawk.CLOCK_MOD:    windhawk.clock_settings,
         windhawk.EXPLORER_MOD: windhawk.explorer_settings,
         windhawk.COLUMNS_MOD:  windhawk.columns_settings,

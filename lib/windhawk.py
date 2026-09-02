@@ -29,6 +29,7 @@ EXPLORER_MOD = "windows-11-file-explorer-styler"
 COLUMNS_MOD = "explorer-force-details-columns"
 NOTIF_MOD = "windows-11-notification-center-styler"
 START_MOD = "windows-11-start-menu-styler"
+STARTPOS_MOD = "taskbar-start-button-position"
 MODS_KEY = r"HKLM\SOFTWARE\Windhawk\Engine\Mods"
 MODS_HIVE = r"HKEY_LOCAL_MACHINE\SOFTWARE\Windhawk\Engine\Mods"
 
@@ -187,6 +188,25 @@ def start_settings(pal: dict) -> dict[str, object]:
     }
 
 
+# ── posición del botón Inicio ─────────────────────────────────────────
+def startpos_settings(pal: dict) -> dict[str, object]:
+    """Inicio a la izquierda con las apps centradas, que es la disposición del
+    diseño y lo único que Windows no sabe hacer solo: su `TaskbarAl` es todo a
+    la izquierda o todo al centro, sin término medio.
+
+    El mod se llama «Start button always on the left» en Windhawk; el id que
+    lleva la URL, `taskbar-start-button-position`, no aparece en el buscador.
+    """
+    t = pal["windowsDesktop"]["taskbar"]
+    return {
+        # búsqueda y vista de tareas se van con Inicio: si no, la lupa queda
+        # flotando al principio del grupo de apps y se ve como un descuadre
+        "otherSystemButtonsOnTheLeft": 1 if t.get("systemButtonsLeft", True) else 0,
+        "startMenuOnTheLeft": 1,
+        "searchMenuPositionInAllCases": 0,
+    }
+
+
 # ── Explorador de archivos ────────────────────────────────────────────
 def explorer_settings(pal: dict) -> dict[str, object]:
     """El Explorador en la paleta. Sin tema base: los targets salen del propio
@@ -198,12 +218,20 @@ def explorer_settings(pal: dict) -> dict[str, object]:
     son el shell view Win32 de toda la vida, y ahí el styler no entra: se quedan
     con el gris oscuro del tema del sistema (#191919). Cambiar eso exigiría
     parchear uxtheme, que no compensa.
+
+    Por eso el Explorador NO usa `surfaces` sino sus propios grises. Con el
+    #07090A del resto del tema, el escalón hasta el #191919 de Windows es de
+    dieciséis niveles y la ventana parece rota por la mitad. Los de
+    `explorer.surfaces` suben el chrome hasta rozarlo: la separación entre
+    barras y contenido la lleva la línea del borde, no un salto de luminancia.
     """
+    es = pal["windowsDesktop"]["explorer"].get("surfaces", {})
     s = pal["surfaces"]
-    chrome = argb(s["bgAlt"])      # barras: comandos, pestañas, direcciones
-    canvas = argb(s["bg"])         # el lienzo: lista de ficheros y home
-    nav = argb("#080B0D")          # panel de navegación, un punto más oscuro
-    edge = argb(s["border"])
+    chrome = argb(es.get("chrome", s["bgAlt"]))   # barras: comandos y direcciones
+    canvas = argb(es.get("tabs", s["bg"]))        # tira de pestañas y lienzo XAML
+    field = argb(es.get("input", s["bg"]))        # pastilla de direcciones y búsqueda
+    # el panel de navegación no está: es Win32, no hay target XAML al que apuntar
+    edge = argb(es.get("border", s["border"]))
 
     styles = [
         # barra de comandos, con la línea inferior que separa del contenido
@@ -217,17 +245,17 @@ def explorer_settings(pal: dict) -> dict[str, object]:
         ("FileExplorerExtensions.NavigationBarControl > Grid#NavigationBarControlGrid", [
             f'Background:=<SolidColorBrush Color="{chrome}" />']),
         ("Grid#FileExplorerAddressBarGrid", [
-            f'Background:=<SolidColorBrush Color="{canvas}" />',
+            f'Background:=<SolidColorBrush Color="{field}" />',
             "CornerRadius=6", "BorderThickness=1",
             f'BorderBrush:=<SolidColorBrush Color="{edge}" />']),
         # el nodo real de la pastilla; sin este, el fondo se queda a medias
         ("FileExplorerExtensions.AddressBarControl > Grid#PART_LayoutRoot > Grid#NormalModeGrid", [
-            f'Background:=<SolidColorBrush Color="{canvas}" />',
+            f'Background:=<SolidColorBrush Color="{field}" />',
             "CornerRadius=6", "BorderThickness=1",
             f'BorderBrush:=<SolidColorBrush Color="{edge}" />']),
         # caja de búsqueda
         ("AutoSuggestBox#FileExplorerSearchBox > Grid#LayoutRoot > TextBox > Grid@CommonStates > Border#BorderElement", [
-            f'Background:=<SolidColorBrush Color="{canvas}" />',
+            f'Background:=<SolidColorBrush Color="{field}" />',
             f'BorderBrush:=<SolidColorBrush Color="{edge}" />',
             "CornerRadius=6"]),
         # pestañas

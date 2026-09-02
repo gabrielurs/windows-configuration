@@ -274,7 +274,7 @@ def main():
     if "accent" not in skip:
         apply_accent(pal, home, ctx)
     if "taskbar" not in skip:
-        restart |= desktop.apply_taskbar(ctx.snap, ctx)
+        restart |= desktop.apply_taskbar(ctx.snap, ctx, pal)
         ctx.note("barra de tareas")
     if "menu" not in skip:
         if desktop.apply_context_menu(ctx.snap, ctx):
