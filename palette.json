@@ -112,9 +112,10 @@
       "timeFormat": "HH':'mm",
       "dateFormat": "dd'/'MM'/'yyyy",
       "topLine": "cpu %cpu% · ram %ram%   %time%",
-      "bottomLine": "%date%",
+      "bottomLine": "%web1%   %date%",
       "fontFamily": "Cascadia Mono",
-      "_fontNote": "El diseño pide JetBrains Mono, que no está en Windows. Cascadia Mono sí viene con Windows Terminal y es la misma familia de uso."
+      "_fontNote": "El diseño pide JetBrains Mono, que no está en Windows. Cascadia Mono sí viene con Windows Terminal y es la misma familia de uso.",
+      "_branchNote": "%web1% es la rama de git, servida por lib/gitbranch.py. Si el servicio no corre, sale vacío y el reloj queda igual que antes."
     },
     "explorer": {
       "_comment": "Las columnas del diseño: NOMBRE / MODIFICADO / TIPO / TAMAÑO, con las anchuras de su rejilla 1fr·150·120·90.",
@@ -136,6 +137,20 @@
           "width": 90
         }
       ]
+    },
+    "gitBranch": {
+      "_comment": "La rama del repo donde tienes la shell, servida por loopback y leida por el reloj como %web1%. Windows llega al 127.0.0.1 de WSL por localhostForwarding.",
+      "port": 8756,
+      "roots": [
+        "~/projects"
+      ],
+      "depth": 3,
+      "dirtyMark": "*",
+      "empty": "",
+      "updateMinutes": 1,
+      "maxLength": 16,
+      "stateFile": "${XDG_STATE_HOME:-~/.local/state}/claude-terminal-theme/repo",
+      "_rootsNote": "roots/depth solo se usan de reserva, cuando el tema zsh no ha escrito stateFile todavia: entonces gana el repo con la mtime mas nueva."
     }
   }
 }

@@ -1,0 +1,18 @@
+[Unit]
+Description=Rama de git para la barra de tareas (tema Claude CLI)
+Documentation=file://@ROOT@/README.md
+After=default.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/env python3 @ROOT@/lib/gitbranch.py
+Restart=always
+RestartSec=5
+# Solo lee repos y escucha en loopback: nada que pida más permisos.
+NoNewPrivileges=true
+PrivateDevices=true
+ProtectControlGroups=true
+ProtectKernelTunables=true
+
+[Install]
+WantedBy=default.target

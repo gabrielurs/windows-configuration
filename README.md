@@ -143,15 +143,34 @@ de estado son el shell view Win32 clásico, donde el styler no entra: se quedan 
 compensa. Las **columnas** sí son exactamente las del diseño — NOMBRE / MODIFICADO /
 TIPO / TAMAÑO en ese orden y con sus anchuras — vía *Explorer Details View Columns*.
 
-**Lo que el diseño pide y no se puede:** el icono del botón de Inicio (solo su fondo es
-estilizable, el logo no), los iconos de app en monoespaciada (son los iconos reales de
-cada programa), el indicador con el color de cada app (el styler no sabe qué app es cada
-botón, así que van todos en teal), la rama de git en la bandeja (no hay de dónde sacarla)
-y la línea teal bajo el título de la ventana activa (eso es DWM, no XAML). El propio
-diseño ya avisa de que los iconos por tipo de fichero del Explorador tampoco son nativos.
+**La rama de git en la bandeja.** El reloj sabe pedir texto por HTTP y pintarlo como
+`%web1%`, así que la rama no necesita nada exótico: `lib/gitbranch.py` la sirve por
+loopback desde WSL y el reloj la lee. Windows llega al `127.0.0.1` de WSL porque
+`localhostForwarding` viene en true de fábrica.
 
-En cambio el diseño se equivoca en un punto a favor: daba por hecho que cpu/ram exigían
-TrafficMonitor o un script propio, y no — el mod del reloj trae `%cpu%` y `%ram%` de serie.
+Qué rama enseña: la del repo **donde tienes la shell**. El tema zsh apunta la raíz del
+repo en `~/.local/state/claude-terminal-theme/repo` en cada prompt, y el servidor lee de
+ahí. Se guarda la ruta y no la rama, así un `git checkout` se refleja sin que la shell
+tenga que enterarse. Si ese fichero no existe todavía, cae al repo con la mtime más nueva
+bajo `~/projects` — más tosco, porque `git status` no siempre reescribe el índice, pero
+da algo razonable. El `*` es que hay cambios sin commitear, y el nombre se recorta a 16
+caracteres para que una rama larga no ensanche el reloj y empuje la bandeja.
+
+Lo mantiene vivo una unit de systemd de usuario. Sin systemd en la WSL, el instalador
+avisa y te deja lanzarlo a mano; si el servicio se cae, `%web1%` sale vacío y el reloj
+queda exactamente como antes.
+
+**Lo que el diseño pide y no se puede:** el icono del botón de Inicio (solo su fondo es
+estilizable, el logo no — aunque *Start Button Replacer* sí lo cambia por un PNG propio,
+si lo instalas), los iconos de app en monoespaciada (son los iconos reales de cada
+programa), el indicador con el color de cada app (el styler no sabe qué app es cada
+botón, así que van todos en teal) y la línea teal bajo el título de la ventana activa
+(eso es DWM, no XAML). El propio diseño ya avisa de que los iconos por tipo de fichero
+del Explorador tampoco son nativos.
+
+En cambio el diseño se equivoca en dos puntos a favor: daba por hecho que cpu/ram exigían
+TrafficMonitor o un script propio —el mod del reloj trae `%cpu%` y `%ram%` de serie— y la
+rama de git parecía imposible hasta mirar que el reloj hace peticiones HTTP.
 
 ## ¿Y sin Windhawk?
 

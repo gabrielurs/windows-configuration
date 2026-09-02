@@ -129,6 +129,37 @@ install_dotfiles() {
   fi
 }
 
+# ── la rama de git para la barra de tareas ────────────────────────────
+# Vive en WSL —los repos están aquí— y el reloj de Windows la lee por loopback.
+# Sin systemd no hay dónde colgarlo: se avisa y se sigue, que el resto del tema
+# no depende de esto.
+install_gitbranch() {
+  local unit_dir="$HOME/.config/systemd/user"
+  local unit="$unit_dir/claude-gitbranch.service"
+
+  say "rama de git en la barra"
+  if ! command -v systemctl >/dev/null 2>&1 || [[ $(ps -p 1 -o comm= 2>/dev/null) != systemd ]]; then
+    warn "sin systemd en esta WSL: lánzalo tú con  python3 $ROOT/lib/gitbranch.py &"
+    warn "(o pon systemd=true en /etc/wsl.conf y reinicia con wsl --shutdown)"
+    return 0
+  fi
+
+  run mkdir -p "$unit_dir"
+  snap_files "$unit"
+  if [[ $DRY -eq 0 ]]; then
+    sed "s|@ROOT@|$ROOT|g" "$ROOT/systemd/claude-gitbranch.service.tmpl" > "$unit"
+    systemctl --user daemon-reload
+    systemctl --user enable --now claude-gitbranch.service >/dev/null 2>&1
+    if systemctl --user is-active --quiet claude-gitbranch.service; then
+      step "servicio activo en 127.0.0.1:$(python3 -c 'import json;print(json.load(open("'"$ROOT"'/palette.json"))["windowsDesktop"]["gitBranch"]["port"])')"
+    else
+      warn "el servicio no arrancó: systemctl --user status claude-gitbranch"
+    fi
+  else
+    step "[dry] unit en $unit + enable --now"
+  fi
+}
+
 # ── main ──────────────────────────────────────────────────────────────
 printf '%stema Claude CLI%s  %s%s%s\n\n' "$TEAL" "$OFF" "$GREY" \
   "$([[ $UNINSTALL -eq 1 ]] && echo desinstalar || echo instalar)$([[ $DRY -eq 1 ]] && echo ' (dry-run)')" "$OFF"
@@ -163,6 +194,7 @@ if [[ $DO_WIN -eq 1 ]]; then
     args=(); [[ $DRY -eq 1 ]] && args+=(--dry-run)
     [[ $WANT_DOCK -eq 0 ]] && args+=(--skip windhawk)
     python3 "$ROOT/lib/apply_windows.py" "${args[@]}"
+    [[ $WANT_DOCK -eq 1 ]] && { echo; install_gitbranch; }
   else
     warn "no veo /mnt/c: esto no es WSL, salto la parte de Windows"
   fi

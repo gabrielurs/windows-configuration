@@ -123,12 +123,18 @@ def taskbar_settings(pal: dict) -> dict[str, object]:
 
 
 def clock_settings(pal: dict) -> dict[str, object]:
-    """Reloj de dos líneas con cpu/ram, como en el diseño.
+    """Reloj de dos líneas con cpu/ram y la rama de git, como en el diseño.
 
     El mod trae %cpu% y %ram% de serie: el diseño daba por hecho que hacían
     falta TrafficMonitor o un script, y no es el caso.
+
+    La rama sí necesita ayuda: el mod sabe pedir texto por HTTP y pintarlo como
+    %web1%, así que `lib/gitbranch.py` la sirve por loopback desde WSL. Si el
+    servicio no está levantado, %web1% sale vacío y el resto del reloj sigue
+    igual — nada se rompe.
     """
     c = pal["windowsDesktop"]["clock"]
+    g = pal["windowsDesktop"].get("gitBranch", {})
     return {
         "ShowSeconds": 0,
         "TimeFormat": c["timeFormat"],
@@ -146,6 +152,18 @@ def clock_settings(pal: dict) -> dict[str, object]:
         # pasar de 9% a 100%
         "DataCollection.PercentageFormat": "spacePaddingAndSymbol",
         "DataCollection.UpdateInterval": 2,
+        # la rama: texto plano, sin recorte por marcadores, tal cual llega
+        "WebContentsItems[0].Url": f"http://127.0.0.1:{g.get('port', 8756)}/",
+        "WebContentsItems[0].BlockStart": "",
+        "WebContentsItems[0].Start": "",
+        "WebContentsItems[0].End": "",
+        "WebContentsItems[0].ContentMode": "",
+        "WebContentsItems[0].SearchReplace[0].Search": "",
+        "WebContentsItems[0].SearchReplace[0].Replace": "",
+        # tope corto a propósito: una rama tipo fix/loquesea-y-lo-otro
+        # ensancharía el reloj y empujaría la bandeja
+        "WebContentsItems[0].MaxLength": int(g.get("maxLength", 16)),
+        "WebContentsUpdateInterval": int(g.get("updateMinutes", 1)),
     }
 
 

@@ -40,6 +40,25 @@ autoload -Uz add-zsh-hook
 add-zsh-hook preexec _claude_timer_start
 add-zsh-hook precmd  _claude_timer_stop
 
+# ── el repo que ve la barra de tareas de Windows ──────────────────────
+# `lib/gitbranch.py` sirve este fichero por loopback y el reloj de la barra
+# pinta su rama. Se apunta la RUTA, no la rama: así un `git checkout` se refleja
+# sin que la shell tenga que enterarse.
+#
+# El fork de git solo ocurre al cambiar de directorio; el resto de prompts es un
+# write de cuarenta bytes. Si no hay Windows delante, esto es un fichero que
+# nadie lee y ya está.
+_claude_repo_file="${XDG_STATE_HOME:-$HOME/.local/state}/claude-terminal-theme/repo"
+_claude_repo_track() {
+  if [[ $PWD != $_claude_repo_pwd ]]; then
+    _claude_repo_pwd=$PWD
+    _claude_repo=$(command git rev-parse --show-toplevel 2>/dev/null) || _claude_repo=""
+  fi
+  [[ -d ${_claude_repo_file:h} ]] || mkdir -p -- "${_claude_repo_file:h}" 2>/dev/null || return
+  print -r -- "$_claude_repo" >| "$_claude_repo_file" 2>/dev/null
+}
+add-zsh-hook precmd _claude_repo_track
+
 # ── contexto: venv, ssh, root ─────────────────────────────────────────
 _claude_context() {
   local out=""

@@ -11,6 +11,26 @@ import pathlib, subprocess, sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import state, windhawk  # noqa: E402
 
+UNIT = "claude-gitbranch.service"
+
+
+def _stop_gitbranch(dry: bool) -> None:
+    """Parar y desenganchar el servicio ANTES de que el snapshot borre el unit.
+
+    Si se borra el fichero con el servicio aún enganchado, systemd se queda con
+    un symlink roto en default.target.wants y lo canta en cada arranque.
+    """
+    unit = pathlib.Path.home() / ".config/systemd/user" / UNIT
+    if not unit.exists():
+        return
+    if dry:
+        print(f"  [dry] systemctl --user disable --now {UNIT}")
+        return
+    for args in (["disable", "--now", UNIT], ["daemon-reload"]):
+        subprocess.run(["systemctl", "--user", *args],
+                       capture_output=True, check=False)
+    print(f"  {UNIT} parado y desenganchado")
+
 
 def _admin_reg(entries: list[dict]) -> str:
     """Un .reg que devuelve las claves de HKLM a como estaban."""
@@ -54,6 +74,7 @@ def run(dry: bool = False, win_home: pathlib.Path | None = None) -> bool:
     print(f"snapshot con {n_file} ficheros, {n_reg} valores de registro "
           f"y {n_key} claves completas\n")
 
+    _stop_gitbranch(dry)
     ok, bad, admin = snap.restore()
     print(f"\n{ok} restaurados, {bad} con problemas")
 
