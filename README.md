@@ -273,10 +273,16 @@ Dos cosas que cuestan si no se saben:
 
 - **Flow reescribe su `Settings.json` al salir.** Hay que pararlo antes de tocarlo o se
   lleva por delante lo que acabas de poner. Mismo patrón que el blob de anclados.
-- **El tema necesita las 19 claves.** Si falta una, `GetResourceDictionary` revienta con
-  `NullReferenceException`, Flow cae al tema por defecto y **no dice nada en la interfaz**:
-  el único sitio donde se ve es su log. Las que no se cambian van igualmente, como paso
-  directo al estilo base.
+- **El tema se genera contra el `Base.xaml` instalado, no contra una plantilla.** Las
+  claves `Base*` cambian entre versiones: la plantilla de su rama dev usa
+  `BaseHorizontalThumbStyle` y `BaseHorizontalScrollBarStyle`, que la 2.1.3 no define. Un
+  `StaticResource` a una clave inexistente revienta el parseo del tema **entero**, así que
+  `lib/flow.py` lee las claves que la versión instalada declara y omite los estilos cuyo
+  base falte.
+- **Y cuando falla no te enteras desde fuera.** Flow avisa con un diálogo —«Fail to load
+  theme, fallback to default»— que **no deja rastro en su log**. Desde el instalador solo
+  se ve que `Theme` vuelve solo a `Win11Light` a los pocos segundos. Si eso pasa, el
+  síntoma es ese y la causa suele ser una referencia rota.
 
 ## ¿Y sin Windhawk?
 

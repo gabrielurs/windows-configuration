@@ -11,7 +11,7 @@ genera el .zsh-theme o el perfil de PowerShell. Un solo sitio donde cambiar un
 color y que cambie en todas partes.
 """
 from __future__ import annotations
-import json, pathlib, subprocess, sys, time
+import json, pathlib, re, subprocess, sys, time
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import render  # noqa: E402
@@ -20,78 +20,89 @@ THEME_NAME = "ClaudeCLI"
 RUN_KEY = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run"
 
 
-def theme_xaml(pal: dict) -> str:
-    s, ro = pal["surfaces"], pal["roles"]
-    fl = pal["windowsDesktop"].get("launcher", {})
-    teal = ro["teal"]["hex"]
-    font = fl.get("font", "Cascadia Mono")
+def base_keys(win_home) -> set[str]:
+    """Las claves Base* que define el Base.xaml INSTALADO.
 
-    def style(key, base, target, setters):
-        rows = "\n".join(f'        <Setter Property="{p}" Value="{v}" />'
-                         for p, v in setters)
+    No vale una lista fija sacada de la plantilla de su repo: la de la rama dev
+    trae claves que la version instalada no tiene, y un StaticResource a una
+    clave inexistente revienta el parseo del tema entero. Flow entonces avisa
+    con un dialogo —«Fail to load theme, fallback to default»— que NO aparece en
+    su log, asi que desde aqui solo se ve que el ajuste se revierte solo.
+    """
+    import glob
+    hits = glob.glob(str(win_home / "AppData/Local/FlowLauncher/app-*/Themes/Base.xaml"))
+    if not hits:
+        return set()
+    txt = pathlib.Path(sorted(hits)[-1]).read_text(encoding="utf-8-sig", errors="replace")
+    return set(re.findall(r'x:Key="(Base[A-Za-z]+)"', txt))
+
+
+def theme_xaml(pal: dict, have: set[str] | None = None) -> str:
+    """El XAML del tema, calcado en estructura a los que trae Flow.
+
+    Calcado a propósito. Flow valida el diccionario y, si algo no le encaja,
+    **cae al tema por defecto sin decir nada**: ni error en la interfaz ni
+    excepción en el log. Se descubrió poniendo uno de sus temas —«Darker», que
+    sí se queda— y viendo que el nuestro se revertía en 20 segundos.
+
+    Por eso aquí no se inventa nada: mismas claves, mismos BasedOn, mismos
+    TargetType que su plantilla, y lo único que cambia son los colores.
+    """
+    s, ro = pal["surfaces"], pal["roles"]
+    teal = ro["teal"]["hex"]
+
+    def style(key, base, target, setters=()):
+        # si la version instalada no define ese Base*, mejor omitir el estilo
+        # entero que tumbar el tema por una referencia rota
+        if have is not None and base not in have:
+            return None
+        if not setters:
+            return (f'    <Style x:Key="{key}" BasedOn="{{StaticResource {base}}}"\n'
+                    f'        TargetType="{{x:Type {target}}}" />')
+        rows = "\n".join(f'        <Setter Property="{p}" Value="{v}" />' for p, v in setters)
         return (f'    <Style x:Key="{key}" BasedOn="{{StaticResource {base}}}"\n'
                 f'        TargetType="{{x:Type {target}}}">\n{rows}\n    </Style>')
 
     blocks = [
-        # el marco: fondo del tema y borde teal, como la ventana activa
-        style("WindowBorderStyle", "BaseWindowBorderStyle", "Border", [
-            ("Background", s["bg"]),
-            ("BorderBrush", teal),
-            ("BorderThickness", "1"),
-            ("CornerRadius", str(fl.get("cornerRadius", 12)))]),
-        # la caja de consulta: monoespaciada y con el cursor en teal, que es lo
-        # que hace que lea como un prompt y no como un cuadro de búsqueda
+        style("ItemGlyph", "BaseGlyphStyle", "TextBlock", [("Foreground", teal)]),
         style("QueryBoxStyle", "BaseQueryBoxStyle", "TextBox", [
-            ("Foreground", s["fg"]),
-            ("CaretBrush", teal),
-            ("SelectionBrush", s["selection"]),
-            ("FontFamily", font)]),
+            ("SelectionBrush", s["selection"])]),
         style("QuerySuggestionBoxStyle", "BaseQuerySuggestionBoxStyle", "TextBox", [
-            ("Foreground", s["ghost"]),
-            ("FontFamily", font)]),
-        style("ItemGlyph", "BaseGlyphStyle", "TextBlock", [
-            ("Foreground", teal)]),
-        style("ItemTitleStyle", "BaseItemTitleStyle", "TextBlock", [
-            ("Foreground", s["fg"])]),
+            ("Foreground", s["ghost"])]),
+        style("WindowBorderStyle", "BaseWindowBorderStyle", "Border", [
+            ("Background", s["bg"])]),
+        style("WindowStyle", "BaseWindowStyle", "Window"),
+        style("PendingLineStyle", "BasePendingLineStyle", "Line"),
+        style("ItemTitleStyle", "BaseItemTitleStyle", "TextBlock"),
         style("ItemSubTitleStyle", "BaseItemSubTitleStyle", "TextBlock", [
-            ("Foreground", s["fgDim"]),
-            ("FontFamily", font)]),
+            ("Foreground", s["fgDim"])]),
         style("ItemTitleSelectedStyle", "BaseItemTitleSelectedStyle", "TextBlock", [
-            ("Foreground", teal)]),
+            ("Cursor", "Arrow")]),
         style("ItemSubTitleSelectedStyle", "BaseItemSubTitleSelectedStyle", "TextBlock", [
-            ("Foreground", s["fgDim"]),
-            ("FontFamily", font)]),
+            ("Foreground", s["fgDim"]), ("Cursor", "Arrow")]),
+        style("ItemImageSelectedStyle", "BaseItemImageSelectedStyle", "Image", [
+            ("Cursor", "Arrow")]),
+        style("ThumbStyle", "BaseThumbStyle", "Thumb"),
+        style("ScrollBarStyle", "BaseScrollBarStyle", "ScrollBar"),
+        style("HorizontalScrollBarStyle", "BaseHorizontalScrollBarStyle", "ScrollBar"),
+        style("HorizontalThumbStyle", "BaseHorizontalThumbStyle", "Thumb"),
         style("SeparatorStyle", "BaseSeparatorStyle", "Rectangle", [
             ("Fill", s["border"]), ("Height", "1"), ("Margin", "8 0 8 8")]),
         style("PreviewBorderStyle", "BasePreviewBorderStyle", "Border", [
             ("BorderBrush", s["border"])]),
     ]
-    # Flow lee el diccionario entero y da por hechas TODAS estas claves: si falta
-    # una, GetResourceDictionary revienta con NullReferenceException y cae al
-    # tema por defecto sin decir nada en la interfaz. Las que no cambiamos van
-    # igualmente, como paso directo al estilo base.
-    passthrough = [
-        ("WindowStyle", "BaseWindowStyle", "Window"),
-        ("PendingLineStyle", "BasePendingLineStyle", "Line"),
-        ("ItemImageSelectedStyle", "BaseItemImageSelectedStyle", "Image"),
-        ("ThumbStyle", "BaseThumbStyle", "Thumb"),
-        ("ScrollBarStyle", "BaseScrollBarStyle", "ScrollBar"),
-        ("HorizontalScrollBarStyle", "BaseHorizontalScrollBarStyle", "ScrollBar"),
-        ("HorizontalThumbStyle", "BaseHorizontalThumbStyle", "Thumb"),
-    ]
-    blocks += [f'    <Style x:Key="{k}" BasedOn="{{StaticResource {b}}}"\n'
-               f'        TargetType="{{x:Type {t}}}" />' for k, b, t in passthrough]
     return (
         '<ResourceDictionary\n'
         '    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"\n'
-        '    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">\n'
+        '    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"\n'
+        '    xmlns:system="clr-namespace:System;assembly=mscorlib">\n'
         '    <ResourceDictionary.MergedDictionaries>\n'
         '        <ResourceDictionary Source="pack://application:,,,/Themes/Base.xaml" />\n'
         '    </ResourceDictionary.MergedDictionaries>\n'
-        f'    <!-- Generado por lib/flow.py desde palette.json. No editar a mano. -->\n'
-        f'    <Thickness x:Key="ResultMargin">0 0 0 8</Thickness>\n'
+        '    <!-- Generado por lib/flow.py desde palette.json. No editar a mano. -->\n'
+        '    <Thickness x:Key="ResultMargin">0 0 0 8</Thickness>\n'
         f'    <SolidColorBrush x:Key="ItemSelectedBackgroundColor">{s["selection"]}</SolidColorBrush>\n'
-        + "\n".join(blocks) + "\n</ResourceDictionary>\n")
+        + "\n".join(b for b in blocks if b) + "\n</ResourceDictionary>\n")
 
 
 def apply(pal: dict, snap, ctx, win_home, remove: bool = False) -> bool:
@@ -120,7 +131,7 @@ def apply(pal: dict, snap, ctx, win_home, remove: bool = False) -> bool:
         return True
 
     theme.parent.mkdir(parents=True, exist_ok=True)
-    theme.write_text(theme_xaml(pal), encoding="utf-8-sig")
+    theme.write_text(theme_xaml(pal, base_keys(win_home)), encoding="utf-8-sig")
     ctx.say(f"{THEME_NAME}.xaml generado desde la paleta")
 
     subprocess.run(["powershell.exe", "-NoProfile", "-Command",

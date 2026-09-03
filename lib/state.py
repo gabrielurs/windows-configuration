@@ -147,6 +147,13 @@ class Snapshot:
         r = subprocess.run(cmd, capture_output=True, cwd="/mnt/c")
         if r.returncode != 0 and not e["existed"]:
             return True          # borrar algo que ya no está no es un fallo
+        if r.returncode != 0:
+            # Sin esto, el informe dice «1 con problemas» y no cuál: un contador
+            # sin nombre no sirve para arreglar nada. Salió al ejecutar el
+            # desinstalador de verdad por primera vez.
+            err = r.stderr.decode("cp850", "replace").strip().splitlines()
+            say(f"    ! no se pudo: {err[0] if err else 'reg.exe devolvió '
+                f'{r.returncode}'}")
         return r.returncode == 0
 
 
