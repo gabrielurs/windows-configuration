@@ -6,7 +6,7 @@ config de los mods de Windhawk) necesita elevación, así que se junta todo en u
 .reg y se importa con una sola ventana de UAC.
 """
 from __future__ import annotations
-import pathlib, subprocess, sys
+import pathlib, subprocess, sys, time
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import state, windhawk  # noqa: E402
@@ -61,6 +61,24 @@ def _admin_reg(entries: list[dict]) -> str:
     return "\r\n".join(out) + "\r\n"
 
 
+def _stop_flow(dry: bool) -> None:
+    """Parar Flow Launcher antes de restaurar su Settings.json.
+
+    Vuelca su copia en memoria al salir, así que restaurar el fichero con él
+    vivo no sirve de nada: lo pisa al cerrarse. Es la misma trampa que al
+    aplicarlo, y aquí se me habría escapado si no llego a ensayar el deshacer.
+    """
+    if dry:
+        print("  [dry] parando Flow Launcher antes de restaurar sus ajustes")
+        return
+    r = subprocess.run(["powershell.exe", "-NoProfile", "-Command",
+                        "Get-Process -Name 'Flow.Launcher' -ErrorAction SilentlyContinue "
+                        "| Stop-Process -Force"], capture_output=True, cwd="/mnt/c")
+    if r.returncode == 0:
+        time.sleep(3)
+        print("  Flow Launcher parado")
+
+
 def run(dry: bool = False, win_home: pathlib.Path | None = None) -> bool:
     snap = state.Snapshot(dry=dry)
     if not snap.exists:
@@ -75,6 +93,7 @@ def run(dry: bool = False, win_home: pathlib.Path | None = None) -> bool:
           f"y {n_key} claves completas\n")
 
     _stop_gitbranch(dry)
+    _stop_flow(dry)
     ok, bad, admin = snap.restore()
     print(f"\n{ok} restaurados, {bad} con problemas")
 

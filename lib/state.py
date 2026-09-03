@@ -131,7 +131,12 @@ class Snapshot:
 
     def _restore_reg(self, e: dict, say) -> bool:
         if e["existed"]:
-            say(f"  {e['name']} ← {e['data']}")
+            # Los blobs binarios (Favorites de la barra son 5 KB de hex) hacen
+            # ilegible el informe: se resume, que aquí interesa QUÉ se restaura.
+            d = e["data"]
+            if len(d) > 60:
+                d = f"{d[:40]}… ({len(d)//2} bytes)"
+            say(f"  {e['name']} ← {d}")
             cmd = ["reg.exe", "add", e["key"], "/v", e["name"],
                    "/t", e["type"], "/d", e["data"], "/f"]
         else:

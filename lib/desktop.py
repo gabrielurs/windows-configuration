@@ -307,10 +307,10 @@ def apply_windhawk(pal: dict, snap: state.Snapshot, ctx, win_home, remove: bool 
         import icons
         icon_dir = win_home / "AppData/Local/claude-terminal-theme/icons"
         if ctx.dry:
-            ctx.say(f"asterisco de Inicio en {icon_dir}/start-claude.png")
+            ctx.say(f"glifo del boton de Inicio en {icon_dir}/start-claude.png")
         else:
             snap.capture_file(icon_dir / "start-claude.png")
-            ctx.say(f"asterisco de Inicio → {icons.build_start(pal, icon_dir).name}")
+            ctx.say(f"glifo del boton de Inicio → {icons.build_start(pal, icon_dir).name}")
     if not wanted:
         return False
     off = [m for m in wanted if windhawk.enabled(m) is False]
