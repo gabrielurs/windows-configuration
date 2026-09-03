@@ -101,26 +101,31 @@
   "windowsDesktop": {
     "_comment": "Geometría del diseño «Tema Windows Claude CLI»: barra de ancho completo pegada abajo, esquinas redondeadas solo arriba, siempre visible.",
     "taskbar": {
-      "cornerRadius": 0,
+      "cornerRadius": 14,
       "buttonRadius": 10,
       "padding": "0,0,0,0",
       "activeAlpha": "21",
       "startAlpha": "1A",
       "indicatorHeight": 3,
-      "_radiusNote": "A 0 a propósito: el diseño dibuja las esquinas superiores redondeadas, pero al estar la barra a ancho completo el redondeo recorta los extremos. Súbelo si prefieres las esquinas del diseño a la cobertura total.",
+      "_radiusNote": "v2 lo pide a 14. Ojo: el Rectangle redondea los CUATRO lados, y la barra va pegada abajo, asi que las esquinas inferiores dejan dos cunas sin pintar contra el borde de la pantalla. Verificado en captura; si te molestan mas que las de arriba, bajalo a 0.",
       "_paddingNote": "A 0 a propósito: el Rectangle del fondo vive DENTRO del padding del RootGrid, así que cualquier padding lateral deja la barra sin pintar esos píxeles en los extremos — se ven como dos huecos.",
       "combineButtons": "always",
       "_combineNote": "El diseno pide «nunca combinar», pero en Windows eso significa etiqueta junto a cada icono: con diez ventanas abiertas son diez titulos truncados que se comen la barra. always = solo el icono. Valores: always | whenFull | never.",
-      "systemButtonsLeft": true
+      "systemButtonsLeft": true,
+      "height": 50,
+      "iconSize": 24,
+      "_sizeNote": "Seccion 02 de v2: barra a 50px, icono a 24px, via taskbar-icon-size."
     },
     "clock": {
-      "timeFormat": "HH':'mm",
-      "dateFormat": "dd'/'MM'/'yyyy",
+      "timeFormat": "HH':'mm':'ss",
+      "dateFormat": "ddd dd'/'MM",
       "topLine": "cpu %cpu% · ram %ram%   %time%",
       "bottomLine": "%web1%   %date%",
       "fontFamily": "Cascadia Mono",
       "_fontNote": "El diseño pide JetBrains Mono, que no está en Windows. Cascadia Mono sí viene con Windows Terminal y es la misma familia de uso.",
-      "_branchNote": "%web1% es la rama de git, servida por lib/gitbranch.py. Si el servicio no corre, sale vacío y el reloj queda igual que antes."
+      "_branchNote": "%web1% es la rama de git, servida por lib/gitbranch.py. Si el servicio no corre, sale vacío y el reloj queda igual que antes.",
+      "showSeconds": true,
+      "_formatNote": "v2 pide 14:22:07 y «mie 02/09»: segundos y dia abreviado. cpu/ram y la rama siguen dentro del reloj — v2 los da por «script externo» porque no sabia que el mod hace peticiones HTTP."
     },
     "explorer": {
       "_comment": "Las columnas del diseño: NOMBRE / MODIFICADO / TIPO / TAMAÑO, con las anchuras de su rejilla 1fr·150·120·90.",

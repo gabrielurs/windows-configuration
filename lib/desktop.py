@@ -20,6 +20,9 @@ BAGS = r"HKCU\Software\Microsoft\Windows\Shell\Bags\AllFolders\Shell"
 CLASSES = r"HKCU\Software\Classes"
 GUID_THIS_PC = "{20D04FE0-3AEA-1069-A2D8-08002B30309D}"
 SEARCH = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Search"
+PERSONALIZE = (r"HKCU\Software\Microsoft\Windows\CurrentVersion\Themes"
+               r"\Personalize")
+POL_EXPLORER = r"HKCU\Software\Policies\Microsoft\Windows\Explorer"
 STUCK = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\StuckRects3"
 
 # valor → (clave, nombre, tipo, dato, explicación)
@@ -29,6 +32,13 @@ TASKBAR = [
     (ADVANCED, "TaskbarDa",            "REG_DWORD", "0", "sin widgets"),
     (ADVANCED, "TaskbarMn",            "REG_DWORD", "0", "sin chat"),
     (SEARCH,   "SearchboxTaskbarMode", "REG_DWORD", "1", "búsqueda reducida a icono"),
+    # v2, sección 11: «sin transparencia». Con cristal, el #0A0D0F de la barra
+    # se mezcla con lo que haya debajo y deja de ser el color del tema.
+    (PERSONALIZE, "EnableTransparency", "REG_DWORD", "0", "sin transparencia"),
+    # v2, sección 04: el contenido web de Bing fuera de Win+S. Es directiva, pero
+    # la de HKCU basta y no pide elevación.
+    (POL_EXPLORER, "DisableSearchBoxSuggestions", "REG_DWORD", "1",
+     "búsqueda sin resultados web"),
 ]
 
 # Combinar botones. El diseño pide «nunca combinar», que en Windows implica
@@ -268,9 +278,10 @@ def apply_windhawk(pal: dict, snap: state.Snapshot, ctx, win_home, remove: bool 
         ctx.say("Windhawk no está instalado, salto")
         return False
 
-    wanted = (windhawk.TASKBAR_MOD, windhawk.START_MOD, windhawk.STARTPOS_MOD,
-              windhawk.STARTICON_MOD, windhawk.BORDER_MOD, windhawk.CLOCK_MOD,
-              windhawk.EXPLORER_MOD, windhawk.COLUMNS_MOD, windhawk.NOTIF_MOD)
+    wanted = (windhawk.TASKBAR_MOD, windhawk.ICONSIZE_MOD, windhawk.START_MOD,
+              windhawk.STARTPOS_MOD, windhawk.STARTICON_MOD, windhawk.BORDER_MOD,
+              windhawk.CLOCK_MOD, windhawk.EXPLORER_MOD, windhawk.COLUMNS_MOD,
+              windhawk.NOTIF_MOD)
     # El manifiesto y el código no pueden divergir en silencio: si añades un mod
     # aquí y olvidas su ficha, el que instale esto en otra máquina se queda sin
     # saber cómo se llama en el buscador.
@@ -314,6 +325,7 @@ def apply_windhawk(pal: dict, snap: state.Snapshot, ctx, win_home, remove: bool 
 
     builders = {
         windhawk.TASKBAR_MOD:  windhawk.taskbar_settings,
+        windhawk.ICONSIZE_MOD: windhawk.iconsize_settings,
         windhawk.START_MOD:    windhawk.start_settings,
         windhawk.STARTPOS_MOD: windhawk.startpos_settings,
         windhawk.STARTICON_MOD: windhawk.starticon_settings,

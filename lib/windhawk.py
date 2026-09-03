@@ -34,6 +34,7 @@ START_MOD = "windows-11-start-menu-styler"
 STARTPOS_MOD = "taskbar-start-button-position"
 STARTICON_MOD = "start-button-replacer"
 BORDER_MOD = "win11-accent-border"
+ICONSIZE_MOD = "taskbar-icon-size"
 MODS_KEY = r"HKLM\SOFTWARE\Windhawk\Engine\Mods"
 MODS_HIVE = r"HKEY_LOCAL_MACHINE\SOFTWARE\Windhawk\Engine\Mods"
 
@@ -97,12 +98,16 @@ def taskbar_settings(pal: dict) -> dict[str, object]:
     r = g["cornerRadius"]
 
     styles = [
-        # el fondo de la barra. Se redondea el Rectangle, no el Grid: al estar
-        # pegada al borde inferior, redondear los cuatro lados se ve como
-        # redondear solo los de arriba, que es lo que pide el diseño.
+        # El fondo de la barra. Un Rectangle redondea los CUATRO lados, y medido
+        # sobre la barra real eso deja dos cuñas sin pintar en las esquinas de
+        # abajo, contra el borde de la pantalla: a y=49 el relleno no empezaba
+        # hasta x=9. El margen inferior negativo estira el rectángulo por debajo
+        # del área visible, así que su redondeo de abajo cae fuera y solo se ven
+        # las esquinas superiores a 14px que pide la sección 02.
         ("Taskbar.TaskbarFrame > Grid#RootGrid > Taskbar.TaskbarBackground > Grid > Rectangle#BackgroundFill", [
             f'Fill:=<SolidColorBrush Color="{bg}" />',
             f"RadiusX={r}", f"RadiusY={r}",
+            f"Margin=0,0,0,-{r}",
         ]),
         ("Rectangle#BackgroundStroke", [
             f'Fill:=<SolidColorBrush Color="{edge}" />',
@@ -171,7 +176,7 @@ def clock_settings(pal: dict) -> dict[str, object]:
     c = pal["windowsDesktop"]["clock"]
     g = pal["windowsDesktop"].get("gitBranch", {})
     return {
-        "ShowSeconds": 0,
+        "ShowSeconds": 1 if c.get("showSeconds") else 0,
         "TimeFormat": c["timeFormat"],
         "DateFormat": c["dateFormat"],
         "DateLocale": "",
@@ -199,6 +204,26 @@ def clock_settings(pal: dict) -> dict[str, object]:
         # ensancharía el reloj y empujaría la bandeja
         "WebContentsItems[0].MaxLength": int(g.get("maxLength", 16)),
         "WebContentsUpdateInterval": int(g.get("updateMinutes", 1)),
+    }
+
+
+# ── alto de la barra y tamaño de icono ────────────────────────────────
+def iconsize_settings(pal: dict) -> dict[str, object]:
+    """Barra a 50px con el icono a 24px, que es lo que pide la sección 02 de v2.
+
+    Los cuatro valores «small» son los de la barra reducida de pantallas
+    secundarias; se dejan proporcionales para que no baile al mover una ventana
+    de monitor.
+    """
+    g = pal["windowsDesktop"]["taskbar"]
+    h = int(g.get("height", 50))
+    ico = int(g.get("iconSize", 24))
+    return {
+        "TaskbarHeight": h,
+        "IconSize": ico,
+        "TaskbarButtonWidth": ico + 20,
+        "IconSizeSmall": max(16, ico - 8),
+        "TaskbarButtonWidthSmall": max(24, ico + 8),
     }
 
 
