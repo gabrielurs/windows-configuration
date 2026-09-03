@@ -229,8 +229,44 @@ def iconsize_settings(pal: dict) -> dict[str, object]:
 
 # ── menú Inicio ───────────────────────────────────────────────────────
 def start_settings(pal: dict) -> dict[str, object]:
+    """Menú Inicio y, de regalo, la búsqueda de Win+S.
+
+    El mod entra en StartMenuExperienceHost, SearchHost y SearchApp, y el campo
+    de búsqueda es el mismo elemento en los tres. Por eso un solo target cubre
+    las secciones 03 y 04 del diseño.
+    """
     s = pal["surfaces"]
-    return {
+    sm = pal["windowsDesktop"].get("startMenu", {})
+    glyph = sm.get("searchGlyph", "❯")
+    font = sm.get("searchFont", "Segoe UI Symbol")
+    tint = argb(pal["roles"][sm.get("searchGlyphRole", "teal")]["hex"])
+
+    styles = [
+        # El prompt del terminal en vez de la lupa. El selector sale de los temas
+        # del propio mod, no de mi cabeza.
+        #
+        # VERIFICADO QUE **NO** APLICA AL MENÚ INICIO de esta build: tras
+        # aplicarlo, su lupa sigue siendo el icono azul-verde estándar de
+        # Windows, sin el teal ni el chevron. El Inicio rediseñado usa otro
+        # elemento para su campo.
+        #
+        # SIN VERIFICAR EN WIN+S, que es para lo que el mod lo trae: el panel no
+        # llegó a primer plano en tres intentos —otra app le robaba el foco— y no
+        # pude capturarlo. Se queda porque no cuesta nada y ahí sí puede ser el
+        # bueno; si algún día sale un cuadrito en vez del chevron, la culpa es de
+        # la fuente y se cambia por Segoe UI Symbol a secas.
+        ("Button#SearchGlyphContainer > Grid > ContentPresenter > FontIcon", [
+            f"Glyph={glyph}",
+            # lista de reserva: si la mono no cubre U+276F, cae en la que sí
+            f"FontFamily={font}",
+            "FontSize=15",
+            f'Foreground:=<SolidColorBrush Color="{tint}" />']),
+        ("Border#AcrylicBorder", [
+            f'BorderBrush:=<SolidColorBrush Color="{argb(s["border"])}" />',
+            "BorderThickness=1",
+            "CornerRadius=16"]),
+    ]
+    out: dict[str, object] = {
         "theme": "TranslucentStartMenu",
         "disableNewStartMenuLayout": "",
         # OPACO, no desenfocado. Con el tinte al 70% que había antes, el fondo de
@@ -239,15 +275,16 @@ def start_settings(pal: dict) -> dict[str, object]:
         # «sin transparencia» y aquí se nota más que en ningún sitio, porque el
         # menú ocupa medio escritorio.
         "styleConstants[0]": f'CommonBgBrush=<SolidColorBrush Color="{argb(s["bg"])}" />',
-        "controlStyles[0].target": "Border#AcrylicBorder",
-        "controlStyles[0].styles[0]": f'BorderBrush:=<SolidColorBrush Color="{argb(s["border"])}" />',
-        "controlStyles[0].styles[1]": "BorderThickness=1",
-        "controlStyles[0].styles[2]": "CornerRadius=16",
         "themeResourceVariables[0]": "",
         "webContentStyles[0].target": "",
         "webContentStyles[0].styles[0]": "",
         "webContentCustomJs": "",
     }
+    for i, (target, rules) in enumerate(styles):
+        out[f"controlStyles[{i}].target"] = target
+        for j, rule in enumerate(rules):
+            out[f"controlStyles[{i}].styles[{j}]"] = rule
+    return out
 
 
 # ── posición del botón Inicio ─────────────────────────────────────────

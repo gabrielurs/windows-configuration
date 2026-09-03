@@ -176,6 +176,13 @@
       "glyph": "❯",
       "role": "teal",
       "iconSize": 24
+    },
+    "startMenu": {
+      "_comment": "Seccion 03 y 04 de v2: el campo de busqueda de Inicio y de Win+S llevan el prompt del terminal en vez de la lupa. Comparten proceso y elemento, asi que un solo target cubre los dos.",
+      "searchGlyph": "❯",
+      "searchGlyphRole": "teal",
+      "_fontNote": "Lista de reserva: si Cascadia Mono no cubre U+276F, cae en Segoe UI Symbol, que si tiene dingbats.",
+      "searchFont": "Cascadia Mono, Segoe UI Symbol, Segoe UI"
     }
   }
 }
