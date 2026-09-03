@@ -41,7 +41,7 @@ las cinco superficies.
 De una máquina WSL recién hecha al tema entero, en un comando:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/gabrielurs/claude-terminal-theme/main/bootstrap.sh | bash
+curl -fsSL https://raw.githubusercontent.com/gabrielurs/windows-configuration/main/bootstrap.sh | bash
 ```
 
 `bootstrap.sh` no necesita git: si no está, se baja el tarball con el mismo curl
@@ -54,8 +54,8 @@ a decir que lo sea.
 Si ya tienes el repo:
 
 ```bash
-git clone git@github.com-iesebre:gabrielurs/claude-terminal-theme.git
-cd claude-terminal-theme
+git clone git@github.com-iesebre:gabrielurs/windows-configuration.git
+cd windows-configuration
 ./install.sh --dry-run    # mira primero qué va a tocar
 ./install.sh              # y hazlo
 exec zsh

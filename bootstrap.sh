@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # bootstrap.sh — de una máquina WSL recién hecha al tema completo, en un comando:
 #
-#   curl -fsSL https://raw.githubusercontent.com/gabrielurs/claude-terminal-theme/main/bootstrap.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/gabrielurs/windows-configuration/main/bootstrap.sh | bash
 #
 # Y con argumentos para install.sh:
 #
@@ -12,7 +12,7 @@
 set -euo pipefail
 
 OWNER="${CTT_OWNER:-gabrielurs}"
-REPO="${CTT_REPO:-claude-terminal-theme}"
+REPO="${CTT_REPO:-windows-configuration}"
 BRANCH="${CTT_BRANCH:-main}"
 DIR="${CTT_DIR:-$HOME/.local/share/claude-terminal-theme/src}"
 

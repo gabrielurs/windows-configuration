@@ -5,7 +5,8 @@ funcionar, y las trampas que cuestan una tarde si no se saben.
 
 ```
 repo    ~/projects/claude-terminal-theme      rama    main
-último  f34498e                               commits 13 en la última sesión
+commits 27 en total, 13 de la última sesión
+remoto  github.com:gabrielurs/windows-configuration  (ssh github.com-iesebre)
 ```
 
 ## Estado, medido no supuesto
@@ -118,6 +119,19 @@ La previsualización de la barra y el Alt+Tab. Los tres targets están en el reg
 del catálogo del mod, pero solo aparecen con interacción real y `keybd_event` no las abre.
 **Pasar el ratón por un icono de la barra y probar Alt+Tab.**
 
+### Android Studio se queda con su icono
+
+De los tres anclados de esta máquina —Android Studio, File Explorer, Google Chrome— el
+primero no está en `icons.APPS` y el instalador lo dice y sigue:
+
+```
+[dry] Android Studio: sin glifo asignado en icons.APPS, lo dejo
+```
+
+**No es un fallo: el diseño especifica siete glifos y ese no es uno.** Añadirlo obliga a
+inventarse glifo y rol, que es justo lo que este repo lleva evitando. Si algún día se
+quiere, la decisión es de diseño y la línea va en `lib/icons.py`, en `APPS`.
+
 ### No hay tests
 
 Todo se verificó midiendo píxeles a mano sobre capturas. Eso no viaja al repo: quien cambie
@@ -130,14 +144,23 @@ sobre `#07090a` con dos halos está especificada si algún día se quiere.
 
 ## Para retomarlo
 
+> **El repo se llama `windows-configuration`, no `claude-terminal-theme`.** Ese sigue
+> siendo el nombre del tema y el de las rutas locales —`~/.config/claude-terminal-theme/`,
+> el snapshot, los iconos en `%LOCALAPPDATA%`—, que **no** se renombraron a propósito: el
+> snapshot ya instalado vive en la ruta vieja y moverla rompe el `--uninstall` de las
+> máquinas que ya tienen el tema puesto. Solo cambiaron las URL de GitHub.
+>
+> El remoto usa el alias `github.com-iesebre` del `~/.ssh/config`, que es el que lleva la
+> clave correcta. Con `git@github.com:` a secas coge la clave por defecto y falla.
+
 ```bash
 # máquina nueva, de cero
-curl -fsSL https://raw.githubusercontent.com/<owner>/claude-terminal-theme/main/bootstrap.sh | bash
+curl -fsSL https://raw.githubusercontent.com/gabrielurs/windows-configuration/main/bootstrap.sh | bash
 
 # ver qué haría sin tocar nada — la forma sensata de estrenar máquina
 ./install.sh --dry-run
 
-# solo una parte
+# solo una parte — esto salta todo menos los mods de Windhawk
 python3 lib/apply_windows.py --skip wt,vscode,ps,accent,taskbar,menu,icons,launcher
 
 # volver al estado anterior a conocer este repo
