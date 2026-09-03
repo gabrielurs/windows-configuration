@@ -178,10 +178,9 @@
       "iconSize": 24
     },
     "startMenu": {
-      "_comment": "Seccion 03 y 04 de v2: el campo de busqueda de Inicio y de Win+S llevan el prompt del terminal en vez de la lupa. Comparten proceso y elemento, asi que un solo target cubre los dos.",
+      "_comment": "El prompt en el campo de busqueda (secciones 03 y 04 de v2) NO esta puesto. El mod SI llega a SearchHost —el fondo del panel mide #07090A, nuestro color— pero la lupa no se deja: el selector de sus propios temas no la toca, y encima es bicolor (#0078D3 azul con verde), asi que no es un FontIcon monocromo. Retomarlo pide un inspector de arbol XAML, no adivinar selectores. Estos valores se quedan para cuando se sepa el bueno.",
       "searchGlyph": "❯",
       "searchGlyphRole": "teal",
-      "_fontNote": "Lista de reserva: si Cascadia Mono no cubre U+276F, cae en Segoe UI Symbol, que si tiene dingbats.",
       "searchFont": "Cascadia Mono, Segoe UI Symbol, Segoe UI"
     }
   }

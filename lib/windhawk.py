@@ -242,25 +242,20 @@ def start_settings(pal: dict) -> dict[str, object]:
     tint = argb(pal["roles"][sm.get("searchGlyphRole", "teal")]["hex"])
 
     styles = [
-        # El prompt del terminal en vez de la lupa. El selector sale de los temas
-        # del propio mod, no de mi cabeza.
+        # NO hay prompt en el campo de busqueda, y no por no intentarlo.
         #
-        # VERIFICADO QUE **NO** APLICA AL MENÚ INICIO de esta build: tras
-        # aplicarlo, su lupa sigue siendo el icono azul-verde estándar de
-        # Windows, sin el teal ni el chevron. El Inicio rediseñado usa otro
-        # elemento para su campo.
+        # El mod SI llega a SearchHost: medido, el fondo del panel de Win+S es
+        # #07090A —nuestro color, 31.388 muestras— asi que el estilo entra.
         #
-        # SIN VERIFICAR EN WIN+S, que es para lo que el mod lo trae: el panel no
-        # llegó a primer plano en tres intentos —otra app le robaba el foco— y no
-        # pude capturarlo. Se queda porque no cuesta nada y ahí sí puede ser el
-        # bueno; si algún día sale un cuadrito en vez del chevron, la culpa es de
-        # la fuente y se cambia por Segoe UI Symbol a secas.
-        ("Button#SearchGlyphContainer > Grid > ContentPresenter > FontIcon", [
-            f"Glyph={glyph}",
-            # lista de reserva: si la mono no cubre U+276F, cae en la que sí
-            f"FontFamily={font}",
-            "FontSize=15",
-            f'Foreground:=<SolidColorBrush Color="{tint}" />']),
+        # Pero la lupa no se deja. El selector de los propios temas del mod,
+        # `Button#SearchGlyphContainer > Grid > ContentPresenter > FontIcon`, no
+        # cambia nada ni en Inicio ni en Win+S: sigue saliendo el icono estandar
+        # y encima es BICOLOR (#0078D3 azul con verde), o sea que no es un glifo
+        # monocromo al que valga cambiarle Glyph y Foreground.
+        #
+        # Queda como lo unico de v2 que se ha resistido. Si alguien lo retoma:
+        # hace falta un inspector de arbol XAML sobre SearchHost, no adivinar
+        # selectores.
         ("Border#AcrylicBorder", [
             f'BorderBrush:=<SolidColorBrush Color="{argb(s["border"])}" />',
             "BorderThickness=1",
