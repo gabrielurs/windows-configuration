@@ -114,7 +114,11 @@
       "systemButtonsLeft": true,
       "height": 50,
       "iconSize": 24,
-      "_sizeNote": "Seccion 02 de v2: barra a 50px, icono a 24px, via taskbar-icon-size."
+      "_sizeNote": "Seccion 02 de v2: barra a 50px, icono a 24px, via taskbar-icon-size.",
+      "previewRadius": 11,
+      "thumbRadius": 7,
+      "switcherRadius": 12,
+      "_previewNote": "Seccion 08 de v2: la previsualizacion al pasar el raton y el Alt+Tab solo aceptan fondo, borde y radio. La miniatura la pinta el sistema."
     },
     "clock": {
       "timeFormat": "HH':'mm':'ss",

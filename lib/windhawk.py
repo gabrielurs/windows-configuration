@@ -134,6 +134,30 @@ def taskbar_settings(pal: dict) -> dict[str, object]:
           ]) for cls in ("TaskListButtonPanel", "TaskListLabeledButtonPanel")],
         # el indicador de app abierta. El diseño lo quiere del color de cada app;
         # el styler no sabe qué app es cada botón, así que va teal para todas.
+        # ── sección 08: previsualización al pasar el ratón y Alt+Tab ──
+        # Solo aceptan fondo, borde y radio; la miniatura la pinta el sistema y
+        # el marco del seleccionado es todo el margen que hay. Los targets salen
+        # del catálogo del propio mod, no de suposiciones.
+        #
+        # SIN VERIFICAR VISUALMENTE: las dos superficies solo aparecen con
+        # interacción real —pasar el ratón por un icono, mantener Alt+Tab— y la
+        # entrada sintética por keybd_event no las abre. Los ajustes están en el
+        # registro; el aspecto lo tiene que mirar una persona.
+        ("Border#HoverFlyoutBackground", [
+            f'Background:=<SolidColorBrush Color="{bg}" />',
+            f'BorderBrush:=<SolidColorBrush Color="{edge}" />',
+            "BorderThickness=1",
+            f"CornerRadius={g.get('previewRadius', 11)}"]),
+        ("Border#ThumbnailVisualHostWrapper", [
+            f"CornerRadius={g.get('thumbRadius', 7)}",
+            f'BorderBrush:=<SolidColorBrush Color="{edge}" />',
+            "BorderThickness=1"]),
+        # el conmutador de tareas
+        ("Grid#ModalRootGrid > Border#BackgroundElement", [
+            f'Background:=<SolidColorBrush Color="{argb(s["bg"])}" />',
+            f'BorderBrush:=<SolidColorBrush Color="{edge}" />',
+            "BorderThickness=1",
+            f"CornerRadius={g.get('switcherRadius', 12)}"]),
         ("Taskbar.TaskListLabeledButtonPanel@RunningIndicatorStates > Rectangle#RunningIndicator", [
             f'Fill@ActiveRunningIndicator:=<SolidColorBrush Color="{argb(teal)}" />',
             f'Fill@InactiveRunningIndicator:=<SolidColorBrush Color="{argb(pal["windowsAccent"]["start"], "99")}" />',
