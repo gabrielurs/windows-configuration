@@ -233,9 +233,12 @@ def start_settings(pal: dict) -> dict[str, object]:
     return {
         "theme": "TranslucentStartMenu",
         "disableNewStartMenuLayout": "",
-        # el tema define $CommonBgBrush con un tinte gris; lo llevamos al fondo
-        # del terminal manteniendo el desenfoque
-        "styleConstants[0]": f'CommonBgBrush=<WindhawkBlur BlurAmount="24" TintColor="{argb(s["bg"], "B3")}"/>',
+        # OPACO, no desenfocado. Con el tinte al 70% que había antes, el fondo de
+        # pantalla se colaba: medido dentro del menú, #984B0A y #28090A — naranja
+        # y rojo del wallpaper atravesando el panel. La sección 11 de v2 pide
+        # «sin transparencia» y aquí se nota más que en ningún sitio, porque el
+        # menú ocupa medio escritorio.
+        "styleConstants[0]": f'CommonBgBrush=<SolidColorBrush Color="{argb(s["bg"])}" />',
         "controlStyles[0].target": "Border#AcrylicBorder",
         "controlStyles[0].styles[0]": f'BorderBrush:=<SolidColorBrush Color="{argb(s["border"])}" />',
         "controlStyles[0].styles[1]": "BorderThickness=1",
@@ -430,11 +433,13 @@ def columns_settings(pal: dict) -> dict[str, object]:
 
 def notification_settings(pal: dict) -> dict[str, object]:
     """Centro de notificaciones. TranslucentShell expone $CommonBgBrush igual
-    que el menú Inicio, así que basta con recolorearlo."""
+    que el menú Inicio, así que basta con recolorearlo — y opaco por el mismo
+    motivo: medido dejaba pasar el fondo (#131415, #161818 en vez del #07090A
+    limpio)."""
     s = pal["surfaces"]
     return {
         "theme": "TranslucentShell",
-        "styleConstants[0]": f'CommonBgBrush=<WindhawkBlur BlurAmount="24" TintColor="{argb(s["bg"], "B3")}"/>',
+        "styleConstants[0]": f'CommonBgBrush=<SolidColorBrush Color="{argb(s["bg"])}" />',
         "styleConstants[1]": "thumbnailImageSize=300",
         "controlStyles[0].target": "MenuFlyoutPresenter > Border",
         "controlStyles[0].styles[0]": f'BorderBrush:=<SolidColorBrush Color="{argb(s["border"])}" />',
