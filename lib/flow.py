@@ -17,6 +17,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import render  # noqa: E402
 
 THEME_NAME = "ClaudeCLI"
+RUN_KEY = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run"
 
 
 def theme_xaml(pal: dict) -> str:
@@ -134,13 +135,28 @@ def apply(pal: dict, snap, ctx, win_home, remove: bool = False) -> bool:
         d["QueryBoxFont"] = fl.get("font", "Cascadia Mono")
         d["SearchWindowAlign"] = "Center"
         d["UseSound"] = False
+        # Arrancar con el equipo, y oculto: un lanzador que hay que abrir a mano
+        # no es un lanzador. Recien instalado viene en False y sin entrada de
+        # arranque de ningun tipo — comprobado, ni Run ni tarea programada ni
+        # carpeta de Inicio.
+        d["StartFlowLauncherOnSystemStartup"] = True
+        d["HideOnStartup"] = True
         settings.write_text(json.dumps(d, indent=2, ensure_ascii=False), encoding="utf-8")
         ctx.say(f"hotkey {d['Hotkey']}, centrado, sin sonido")
 
     exe = win_home / "AppData/Local/FlowLauncher/Flow.Launcher.exe"
+    # La entrada de arranque se escribe aparte: el ajuste del JSON por si solo no
+    # la crea, la crea Flow al conmutarla en su interfaz. Como aqui no pasamos
+    # por su interfaz, se pone a mano.
     if exe.exists():
+        win = subprocess.run(["wslpath", "-w", str(exe)],
+                             capture_output=True, text=True).stdout.strip()
+        snap.capture_reg(RUN_KEY, "FlowLauncher")
+        subprocess.run(["reg.exe", "add", RUN_KEY, "/v", "FlowLauncher", "/t", "REG_SZ",
+                        "/d", win, "/f"], capture_output=True, cwd="/mnt/c")
+        ctx.say("arranca con el equipo, oculto")
         subprocess.run(["powershell.exe", "-NoProfile", "-Command",
-                        f"Start-Process '{exe.as_posix()}'"], capture_output=True, cwd="/mnt/c")
+                        f"Start-Process '{win}'"], capture_output=True, cwd="/mnt/c")
     return True
 
 
