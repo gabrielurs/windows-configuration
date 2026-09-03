@@ -63,6 +63,10 @@ def palette_zsh(p: dict) -> str:
         u = name.upper()
         out.append(f"typeset -g CC_HEX_{u}='{hex_}'")
         out.append(f"typeset -g CC_{u}='{sgr(hex_)}'")
+    # ¿La fuente del terminal trae los glifos de la zona de uso privado? eza y
+    # compañía los usan para sus iconos, y Cascadia Code a secas NO los tiene:
+    # sin esto salen todos como «?».
+    out.append(f"typeset -g CC_NERD_GLYPHS='{1 if p['font'].get('nerdGlyphs') else 0}'")
     out.append(f"typeset -g CC_BG_SEL='{sgr(p['surfaces']['selection'], 'bg')}'")
     out.append(f"typeset -g CC_BG_DARK='{sgr(p['surfaces']['bgAlt'], 'bg')}'")
     out.append("")

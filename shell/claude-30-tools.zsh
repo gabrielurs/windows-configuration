@@ -74,11 +74,21 @@ tr=${CC_TEAL}:tw=${CC_AMBER}:tx=${CC_GREEN}:\
 ga=${CC_GREEN}:gm=${CC_AMBER}:gd=${CC_RED}:gv=${CC_PURPLE}:\
 xx=${CC_GREY}"
 
-  alias ls='eza --group-directories-first --icons=auto'
-  alias ll='eza -l --group-directories-first --icons=auto --git --time-style=long-iso'
-  alias la='eza -la --group-directories-first --icons=auto --git --time-style=long-iso'
-  alias lt='eza --tree --level=2 --icons=auto --group-directories-first'
-  alias tree='eza --tree --icons=auto --group-directories-first'
+  # Los iconos salen de palette.json, no de una suposición. eza los dibuja con
+  # codepoints de la zona de uso privado (U+E000–U+F8FF) y ahí solo hay glifos si
+  # la fuente es una Nerd Font; con Cascadia Code a secas salen TODOS como «?».
+  # Por eso font.nerdGlyphs viene en false: se pone a true cuando font.face lo es.
+  #
+  # Ojo con «--icons=auto»: el auto mira si hay terminal, NO si hay glifos. No
+  # protege de nada aquí.
+  _cci=never; [[ ${CC_NERD_GLYPHS:-0} == 1 ]] && _cci=auto
+
+  alias ls="eza --group-directories-first --icons=$_cci"
+  alias ll="eza -l --group-directories-first --icons=$_cci --git --time-style=long-iso"
+  alias la="eza -la --group-directories-first --icons=$_cci --git --time-style=long-iso"
+  alias lt="eza --tree --level=2 --icons=$_cci --group-directories-first"
+  alias tree="eza --tree --icons=$_cci --group-directories-first"
+  unset _cci
 fi
 
 # ── bat ───────────────────────────────────────────────────────────────
@@ -102,21 +112,31 @@ fi
 (( $+commands[zoxide] )) && eval "$(zoxide init zsh)"
 
 # ── delta: diffs de git legibles ──────────────────────────────────────
-# Configurado por variable de entorno y NO por ~/.gitconfig: así el tema no
-# toca un fichero que es tuyo y que el desinstalador tendría que restaurar.
+# Los ajustes van como ARGUMENTOS y no por GIT_CONFIG_COUNT, que es lo primero
+# que se probó: git sí honra esas variables, pero delta lee el gitconfig con
+# libgit2 y ese mecanismo lo implementa el binario de git, no la librería. O sea
+# que `git config --get delta.plus-style` devolvía el valor y delta seguía con
+# sus colores. Comprobado con `delta --show-config`.
+#
+# Y tampoco se escribe en tu ~/.gitconfig: ese fichero es tuyo, y si el tema lo
+# tocara el desinstalador tendría que restaurarlo.
 if (( $+commands[delta] )); then
-  export GIT_PAGER="delta"
   export DELTA_PAGER="less -R"
-  # delta lee su config de git; estas van por env para no escribir en tu gitconfig
-  export GIT_CONFIG_COUNT=8
-  export GIT_CONFIG_KEY_0=delta.syntax-theme      GIT_CONFIG_VALUE_0=ansi
-  export GIT_CONFIG_KEY_1=delta.line-numbers      GIT_CONFIG_VALUE_1=true
-  export GIT_CONFIG_KEY_2=delta.navigate          GIT_CONFIG_VALUE_2=true
-  export GIT_CONFIG_KEY_3=delta.hyperlinks        GIT_CONFIG_VALUE_3=true
-  export GIT_CONFIG_KEY_4=delta.file-style        GIT_CONFIG_VALUE_4="${CC_HEX_TEAL} bold"
-  export GIT_CONFIG_KEY_5=delta.hunk-header-style GIT_CONFIG_VALUE_5="${CC_HEX_GREY}"
-  export GIT_CONFIG_KEY_6=delta.plus-style        GIT_CONFIG_VALUE_6="syntax ${CC_HEX_BGALT}"
-  export GIT_CONFIG_KEY_7=delta.minus-style       GIT_CONFIG_VALUE_7="syntax ${CC_HEX_BGALT}"
+  export GIT_PAGER="delta \
+    --syntax-theme=ansi \
+    --line-numbers --navigate --hyperlinks \
+    --file-style='${CC_HEX_TEAL} bold' \
+    --file-decoration-style='${CC_HEX_BORDER} ul' \
+    --hunk-header-style='syntax' \
+    --hunk-header-decoration-style='${CC_HEX_BORDER}' \
+    --line-numbers-left-style='${CC_HEX_GHOST}' \
+    --line-numbers-right-style='${CC_HEX_GHOST}' \
+    --line-numbers-plus-style='${CC_HEX_GREEN}' \
+    --line-numbers-minus-style='${CC_HEX_RED}' \
+    --plus-style='syntax ${CC_HEX_DIFFPLUS}' \
+    --minus-style='syntax ${CC_HEX_DIFFMINUS}' \
+    --plus-emph-style='syntax ${CC_HEX_SELECTION}' \
+    --minus-emph-style='syntax ${CC_HEX_SELECTION}'"
 fi
 
 # ── tldr ──────────────────────────────────────────────────────────────

@@ -381,11 +381,11 @@ los candidatos agrupados bajo epígrafes en ámbar en vez de un tapiz plano.
 | | qué aporta | cómo se colorea |
 |---|---|---|
 | `fzf` | el `Ctrl+R`, el `Ctrl+T` y el salto de directorio | `FZF_DEFAULT_OPTS` desde `CC_HEX_*` |
-| `eza` | `ls` con iconos y estado de git **por fichero** | `EZA_COLORS`, mismo esquema semántico |
+| `eza` | `ls` con estado de git **por fichero** (iconos: ver abajo) | `EZA_COLORS`, mismo esquema semántico |
 | `bat` | `cat` con sintaxis, y la vista previa del `Ctrl+T` | `BAT_THEME=ansi` |
 | `fd` | `find` usable, respeta `.gitignore` | — (alimenta a fzf) |
 | `zoxide` | `z proyectos` salta a lo más visitado | — |
-| `delta` | diffs de git legibles | `GIT_CONFIG_*` por entorno |
+| `delta` | diffs de git legibles | argumentos en `GIT_PAGER` |
 | `gh` `lazygit` `btop` `duf` `httpie` `tldr` | el resto del lote | — |
 
 **El truco de `bat` y `delta` es el mismo, y es el que hace que esto no se desincronice.**
@@ -395,7 +395,28 @@ fichero de tema: cambias un hex en `palette.json`, relanzas `./install.sh`, y si
 
 Sobre `eza`: la tentación era darle *más* colores. No se hizo. La paleta asigna un color por
 **tipo de dato**, no por extensión, y eso es lo que permite que una ruta sea teal en el prompt,
-en `ls` y en `grep`. Lo que `eza` añade no son colores, son **iconos** y la columna de git.
+en `ls` y en `grep`. Lo que `eza` añade no son colores, es la **columna de git**.
+
+### Los iconos vienen apagados, y por qué
+
+`eza --icons` dibuja con codepoints de la **zona de uso privado** (`U+E000`–`U+F8FF`), que es
+donde las Nerd Fonts meten sus glifos. `Cascadia Code` —la fuente que pone este tema— **no los
+tiene**, así que con los iconos encendidos sale un `?` por fichero.
+
+Por eso el interruptor está en `palette.json` y no a fuego en el código:
+
+```json
+"font": { "face": "Cascadia Code", "nerdGlyphs": false }
+```
+
+Con `nerdGlyphs: false` la capa 30 pasa `--icons=never`. Si quieres iconos: instala una Nerd
+Font, pon su nombre exacto en `face`, `nerdGlyphs` a `true` y relanza `./install.sh`. La
+variante oficial de Microsoft se llama **Cascadia Code NF** y sale de
+[sus releases](https://github.com/microsoft/cascadia-code/releases) — no está en winget, que
+de Nerd Fonts solo trae JetBrainsMono.
+
+Y ojo con `--icons=auto`, que suena a que resuelve esto: **el `auto` mira si hay terminal, no
+si hay glifos.** No protege de nada aquí.
 
 Dos avisos que ahorran un rato:
 
@@ -405,8 +426,17 @@ Dos avisos que ahorran un rato:
 - **`cat` se deja en paz a propósito.** Aliasarlo a `bat` rompe las tuberías de cualquiera que
   espere texto pelado.
 
-`delta` se configura por `GIT_CONFIG_COUNT` y **no** escribiendo en tu `~/.gitconfig`: ese
-fichero es tuyo, y si el tema lo tocara el desinstalador tendría que restaurarlo.
+`delta` se configura con **argumentos dentro de `GIT_PAGER`**. La vía elegante —`GIT_CONFIG_COUNT`
+en el entorno— se probó y **no funciona**: git sí honra esas variables, pero delta lee el gitconfig
+con libgit2, y ese mecanismo lo implementa el binario de git, no la librería. El síntoma es
+desconcertante, porque `git config --get delta.plus-style` devuelve tu valor mientras delta sigue
+pintando con los suyos. Se ve con `delta --show-config`.
+
+Tampoco se escribe en tu `~/.gitconfig`: ese fichero es tuyo, y si el tema lo tocara el
+desinstalador tendría que restaurarlo.
+
+Los fondos de `+` y `−` salen de `surfaces.diffPlus` y `diffMinus`, que **se derivaron** mezclando
+el verde y el rojo de la paleta al 12% sobre el fondo — no se eligieron a ojo.
 
 `lazygit` es el único que no está en el apt de Ubuntu 24.04; el instalador se baja el binario
 de su release a `~/.local/bin`. Si eso falla, avisa y sigue — no bloquea nada.

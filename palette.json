@@ -9,7 +9,9 @@
     "fg": "#C9D1D9",
     "fgDim": "#7D8894",
     "selection": "#16323A",
-    "ghost": "#3A444E"
+    "ghost": "#3A444E",
+    "diffPlus": "#112319",
+    "diffMinus": "#231617"
   },
   "roles": {
     "teal": {
@@ -96,7 +98,8 @@
   "font": {
     "face": "Cascadia Code",
     "sizeTerminal": 11,
-    "sizeVSCode": 13
+    "sizeVSCode": 13,
+    "nerdGlyphs": false
   },
   "windowsDesktop": {
     "_comment": "Geometría del diseño «Tema Windows Claude CLI»: barra de ancho completo pegada abajo, esquinas redondeadas solo arriba, siempre visible.",

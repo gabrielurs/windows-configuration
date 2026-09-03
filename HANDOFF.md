@@ -119,6 +119,14 @@ La previsualización de la barra y el Alt+Tab. Los tres targets están en el reg
 del catálogo del mod, pero solo aparecen con interacción real y `keybd_event` no las abre.
 **Pasar el ratón por un icono de la barra y probar Alt+Tab.**
 
+### Los iconos de eza, apagados a propósito
+
+No es que fallen: `Cascadia Code` no tiene glifos en la zona de uso privado
+(`U+E000`–`U+F8FF`) y con `--icons` sale un `?` por fichero. El interruptor vive en
+`palette.json` → `font.nerdGlyphs`, hoy en `false`. Para encenderlos hace falta instalar
+**Cascadia Code NF** (de las releases de Microsoft; no está en winget) y poner `face` y
+`nerdGlyphs` acordes.
+
 ### Android Studio se queda con su icono
 
 De los tres anclados de esta máquina —Android Studio, File Explorer, Google Chrome— el
