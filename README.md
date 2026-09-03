@@ -579,6 +579,7 @@ Al pulsar un prefijo la banda cambia al submapa.
 | `w` | ventana: `k` maximizar, `j` minimizar, `c` centrar, `q` cerrar, `t` siempre encima |
 | `d` | escritorio: `h l` anterior/siguiente, `1-9` ir al N, `n` nuevo, `q` cerrar |
 | `a` | abrir: `t` terminal, `e` explorador, `b` navegador, `c` código |
+| `m` | devuelve el menú de ventana de Windows y sale del modo |
 | `Esc` | en un submapa vuelve al raíz; en el raíz, sale |
 
 `q` cierra en los dos submapas, y `c` es siempre «centrar» o «código», nunca «cerrar»: una
@@ -591,9 +592,11 @@ que reacciona al instante: el reloj no sirve para esto, porque pide su texto por
 `WebContentsUpdateInterval` —que va en minutos—, y eso está bien para una rama de git e
 inservible para un modo que cambia al pulsar una tecla.
 
-`Alt+Space` **pisa el menú de ventana de Windows** (mover / tamaño / cerrar). Se devuelve
-manteniéndola pulsada más de 400 ms. Flow Launcher sigue en `Ctrl+Space`: son dos atajos
-vecinos para cosas distintas, a propósito.
+`Alt+Space` **pisa el menú de ventana de Windows** (mover / tamaño / cerrar). Se devuelve de dos
+formas: la tecla `m` dentro del modo, que además se **ve** en la banda, o manteniendo `Alt+Space`
+más de 400 ms. Existen las dos porque un gesto que no está escrito en ningún sitio no lo
+encuentra nadie. Flow Launcher sigue en `Ctrl+Space`: son dos atajos vecinos para cosas
+distintas, a propósito.
 
 El foco de `h j k l` es **espacial de verdad**, no un ciclo por orden Z: se elige la ventana
 cuyo centro cae en esa dirección y está más cerca, con lo perpendicular pesando el doble para
@@ -619,6 +622,16 @@ lo vigila `--self-test`.
 - **El modo visual de zsh no cambia `$KEYMAP`.** Sigue diciendo `vicmd` y usa el keymap
   `visual` como una capa por encima. Preguntando solo por `$KEYMAP`, la tira anunciaba NORMAL
   mientras seleccionabas. Lo que hay que mirar es `$REGION_ACTIVE`.
+- **En el menú de completado no se ata nada, y es una decisión.** Hubo un `hjkl` para moverse
+  por él. Se quitó al probarlo: en el menú, una tecla imprimible sin atar cierra el menú y se
+  escribe, que es como se acota la lista —`cat <Tab>`, tecleas `l`, y te quedas con los que
+  empiezan por l—. Atando esas cuatro letras, teclear `l` movía la selección y perdías la forma
+  de acotar por las cuatro letras más comunes del abecedario.
+- **AutoHotkey no considera «físicas» las teclas que inyecta un programa**, así que el gesto de
+  mantener `Alt+Space` **no se puede validar desde un banco de pruebas**: `GetKeyState(…, "P")`
+  responde «arriba» para una pulsación sintética. Lo que sí se arregló es lo que sí se podía
+  medir: sin el prefijo `$` en el atajo, AutoHotkey ni siquiera instala el hook de teclado y el
+  estado físico no se rastrea en absoluto. Por eso existe la tecla `m`, que sí se verifica.
 - **Los ganchos de ZLE se encadenan, no se pisan.** oh-my-zsh carga los plugins *antes* que
   estas capas, y zsh-syntax-highlighting cuelga de `zle-line-pre-redraw`. Un `zle -N` ahí deja
   el resaltado muerto sin decir por qué; `add-zle-hook-widget` respeta al que ya estaba.

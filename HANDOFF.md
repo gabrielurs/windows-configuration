@@ -150,6 +150,21 @@ repintar. La tira se quedaba en NORMAL mientras el chuletario tenía un modo ent
 Comprobado conduciendo una shell de verdad y mirando la pantalla. `showIn` ya no lo incluye y
 el modo se llama «OBJETOS»: es la referencia de `claude-keys`, no una tira.
 
+### Las teclas sintéticas no son «físicas» para AutoHotkey
+
+Y eso marca el límite de lo que se puede probar desde aquí. `GetKeyState("Space", "P")` responde
+«arriba» para una pulsación inyectada con `keybd_event`, así que **el gesto de mantener
+`Alt+Space` para recuperar el menú de ventana no es verificable por sonda**: ni se puede
+demostrar que va, ni que no va. Con una mano de verdad debería ir.
+
+Lo que sí se midió y se arregló: sin el prefijo `$` en el atajo, AutoHotkey lo registra por la
+vía rápida y **no instala el hook de teclado**, con lo que el estado físico no se rastrea de
+ninguna manera y `KeyWait` vuelve al instante. Ahora lleva `$`, y el auto-test comprueba que
+sigue ahí.
+
+Por lo mismo existe la tecla `m` del mapa raíz: hace lo mismo, se ve en la banda y **sí** se
+verifica —comprobado que cierra la banda y abre el `#32768` del sistema—.
+
 ### El modo visual de zsh no cambia `$KEYMAP`
 
 Sigue diciendo `vicmd` y usa el keymap `visual` como una capa por encima; `zle-keymap-select`
@@ -202,6 +217,10 @@ La banda, su posición y sus colores se midieron **en captura de pantalla**: `x=
 w=860 h=34` sobre un área de trabajo de 1920×1030, o sea centrada y pegada justo encima de la
 barra; fondo `#07090A` y borde `#1A2026`, los de la paleta. El icono de bandeja y el submapa
 `w` también se verificaron por sonda.
+
+Y la ruta del atajo entera, con teclas inyectadas: `Alt+Space` abre la banda (860 px), `w` pasa
+al submapa (780 px), `Esc` vuelve al raíz, `d` abre el de escritorios y `Esc Esc` sale. Incluido
+el caso de teclear con Alt todavía pulsado, que antes se perdía.
 
 Lo que **no** se ha probado con las manos: `h j k l` moviendo el foco entre ventanas reales,
 `H J K L` repartiendo mitades, y el salto a un escritorio virtual concreto. La lógica está

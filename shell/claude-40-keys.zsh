@@ -331,12 +331,17 @@ bindkey -M vicmd '^r' redo
 (( ${+widgets[fzf-file-widget]} ))    && bindkey -M viins '^t' fzf-file-widget
 (( ${+widgets[fzf-cd-widget]} ))      && bindkey -M viins '\ec' fzf-cd-widget
 
-# En el menú de completado, la capa 20 ya puso Shift+Tab y Esc. Aquí solo se
-# añade moverse con hjkl, que es lo que la mano espera después de todo esto.
-bindkey -M menuselect 'h' vi-backward-char
-bindkey -M menuselect 'j' vi-down-line-or-history
-bindkey -M menuselect 'k' vi-up-line-or-history
-bindkey -M menuselect 'l' vi-forward-char
+# En el menú de completado NO se toca nada, y es una decisión, no un olvido.
+#
+# Aquí hubo un `bindkey -M menuselect h/j/k/l` porque «es lo que la mano espera
+# después de todo esto». Se quitó al probarlo: en el menú, una tecla imprimible
+# que no está atada CIERRA el menú y se escribe, que es como se acota la lista
+# —`cat <Tab>`, tecleas `l`, y te quedas con los ficheros que empiezan por l—.
+# Atando esas cuatro letras a moverse, teclear `l` movía la selección y ya no
+# había forma de acotar por las cuatro letras más comunes del abecedario.
+#
+# El menú ya trae los cursores atados de serie, la capa 20 le puso Shift+Tab y
+# Esc, y `^j` es aceptar. No falta nada; sobraba.
 
 # ── claude-keys: el interruptor y la chuleta ──────────────────────────
 _claude_keys_write() {

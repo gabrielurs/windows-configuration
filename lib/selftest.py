@@ -478,8 +478,11 @@ def check_keys_windows(r: Report, pal: dict) -> None:
     r.check("declara AutoHotkey v2", "#Requires AutoHotkey v2.0" in src)
 
     w = pal["keys"]["windows"]
-    r.check(f"el modo se abre con {w['hotkeyLabel']}",
-            f"\n{w['hotkey']}::" in src, w["hotkey"])
+    # El $ delante no es adorno: sin él AutoHotkey no usa el hook de teclado y
+    # el estado físico de las teclas deja de rastrearse, con lo que mantener
+    # pulsado para recuperar el menú de ventana no funciona nunca.
+    r.check(f"el modo se abre con {w['hotkeyLabel']} (con hook)",
+            f"\n${w['hotkey']}::" in src, w["hotkey"])
 
     # Cada tecla anunciada tiene su `case` en la función del submapa. `Esc` lo
     # trata Act() para todos, y las cifras van por expresión regular.
@@ -517,7 +520,7 @@ def check_keys_windows(r: Report, pal: dict) -> None:
 
     # OnExit por debajo del primer atajo es código muerto: la sección de
     # autoejecución de AutoHotkey termina ahí. Costó una tarde de sondas.
-    hot = src.find(f"\n{w['hotkey']}::")
+    hot = src.find(f"\n${w['hotkey']}::")
     r.check("OnExit se registra (va antes del primer atajo)",
             0 < src.find("OnExit(") < hot, "está por debajo del primer atajo")
 

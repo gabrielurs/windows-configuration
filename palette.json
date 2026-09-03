@@ -112,7 +112,7 @@
       "maxLines": 3,
       "_maxLinesNote": "Tope de filas de la tira. Sin el, en un terminal de 80 columnas NORMAL ocupaba SEIS lineas —un cuarto de la pantalla cada vez que pulsas Esc— y eso ya no es which-key, es volcar el manual encima del prompt. Lo que no cabe se resume en un « … » que remite a `claude-keys`, que si esta completo.",
       "escape": "jk",
-      "_escapeNote": "La fuga a NORMAL sin estirar el menique hasta Esc. Vacia («») para desactivarla y dejar solo Esc.",
+      "_escapeNote": "La fuga a NORMAL sin estirar el menique hasta Esc. Vacia («») para desactivarla y dejar solo Esc. Tiene un coste y conviene saberlo: zsh espera keyTimeout tras cada `j` por si viene una `k`, asi que un `j` seguido de pausa tarda ~150 ms en aparecer. Escribiendo del tiron no se nota; si te molesta, ponlo vacio.",
       "cursor": {
         "normal": 2,
         "insert": 6,
@@ -186,7 +186,7 @@
     "windows": {
       "hotkey": "!Space",
       "hotkeyLabel": "Alt+Space",
-      "_hotkeyNote": "Sintaxis de AutoHotkey: ! es Alt, ^ Ctrl, # Win, + Shift. Alt+Space PISA el menu de ventana de Windows (mover/tamano/cerrar); se devuelve manteniendola pulsada mas de passthroughMs. Flow Launcher sigue en Ctrl+Space: son dos atajos vecinos para cosas distintas, a proposito.",
+      "_hotkeyNote": "Sintaxis de AutoHotkey: ! es Alt, ^ Ctrl, # Win, + Shift. Alt+Space PISA el menu de ventana de Windows (mover/tamano/cerrar), y se devuelve de dos formas: la tecla `m` dentro del modo —que ademas se VE en la banda— o manteniendo Alt+Space mas de passthroughMs. Flow Launcher sigue en Ctrl+Space: son dos atajos vecinos para cosas distintas, a proposito.",
       "passthroughMs": 400,
       "exitKey": "Escape",
       "osd": {
@@ -219,6 +219,7 @@
             ["w", "ventana >"],
             ["d", "escritorio >"],
             ["a", "abrir >"],
+            ["m", "menu de ventana"],
             ["Esc", "salir"]
           ]
         },

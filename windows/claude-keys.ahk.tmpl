@@ -61,16 +61,33 @@ OnExit((*) => HideOSD())
 ; devuelve el menú de ventana de Windows, que es lo que esta tecla hacía antes
 ; de que llegáramos nosotros. Se manda por WM_SYSCOMMAND y no con Send("!{Space}")
 ; porque eso volvería a disparar este mismo atajo.
-@@HOTKEY@@:: {
+; El $ delante fuerza el hook de teclado. Sin él AutoHotkey registra el atajo
+; por la vía rápida y NO rastrea el estado físico de las teclas: GetKeyState con
+; "P" devuelve «arriba» en el mismo instante en que salta el atajo, porque la
+; pulsación ya se la ha comido el propio atajo. Y entonces el KeyWait de abajo
+; vuelve al momento y mantener pulsado nunca devuelve el menú.
+$@@HOTKEY@@:: {
     global MODE, PASSTHROUGH
-    if KeyWait("Space", "T" (PASSTHROUGH / 1000)) {
+    ; La «P» de física no es opcional. Sin ella KeyWait mira el estado LÓGICO
+    ; de la tecla, y como este mismo atajo se acaba de comer el Space, para
+    ; Windows ya está suelto: KeyWait volvía al instante, la espera nunca
+    ; expiraba y el menú de ventana no se devolvía JAMÁS por mucho que
+    ; mantuvieras pulsado. Medido manteniendo 900 ms con passthroughMs en 400.
+    if KeyWait("Space", "P T" (PASSTHROUGH / 1000)) {
         if (MODE = "")
             EnterMode("normal")
         else
             LeaveMode()
         return
     }
-    KeyWait("Space")
+    KeyWait("Space", "P")
+    SystemMenu()
+}
+
+; El menú de ventana de Windows —mover, tamaño, cerrar—, que es lo que esta
+; tecla hacía antes de que llegáramos. Va por WM_SYSCOMMAND y no con
+; Send("!{Space}") porque eso volvería a disparar este mismo atajo.
+SystemMenu() {
     try PostMessage(0x0112, 0xF100, 32, , "A")     ; WM_SYSCOMMAND, SC_KEYMENU
 }
 
@@ -81,16 +98,26 @@ OnExit((*) => HideOSD())
 ; tecla y acabas escribiendo en el documento de debajo.
 InitHotkeys() {
     HotIf (*) => MODE != ""
-    for k in StrSplit("abcdefghijklmnopqrstuvwxyz0123456789")
+    ; Cada tecla se registra DOS veces: sola y con Alt. Lo segundo es por el
+    ; modo en que se entra: pulsas Alt+Espacio y sigues con Alt bajado un
+    ; instante más: la primera tecla del modo llega como Alt+algo y, sin esta
+    ; variante, AutoHotkey no la reconoce —exige que los modificadores encajen
+    ; exactamente— y se pierde. El usuario ve que la primera tecla no hace nada.
+    for k in StrSplit("abcdefghijklmnopqrstuvwxyz0123456789") {
         Hotkey(k, OnModeKey)
-    for k in StrSplit("hjkl")
+        Hotkey("!" k, OnModeKey)
+    }
+    for k in StrSplit("hjkl") {
         Hotkey("+" k, OnModeKey)
+        Hotkey("+!" k, OnModeKey)
+    }
     Hotkey("Escape", OnModeKey)
+    Hotkey("!Escape", OnModeKey)
     HotIf()
 }
 
 OnModeKey(name) {
-    key := name
+    key := StrReplace(name, "!", "")          ; el Alt que pueda quedar pulsado
     if (SubStr(key, 1, 1) = "+")
         key := StrUpper(SubStr(key, 2))
     Act(key)
@@ -121,6 +148,12 @@ ActNormal(key) {
         case "w": EnterMode("window")
         case "d": EnterMode("desktop")
         case "a": EnterMode("apps")
+        case "m":
+            ; La otra forma de recuperar el menú de ventana, y la única que se
+            ; VE: mantener pulsado Alt+Espacio también lo devuelve, pero un
+            ; gesto que no está escrito en ningún sitio no lo encuentra nadie.
+            LeaveMode()
+            SystemMenu()
     }
 }
 
