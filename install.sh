@@ -10,6 +10,7 @@
 #   ./install.sh --yes          no preguntes nada
 #   ./install.sh --dry-run      enseña qué haría y no toca nada
 #   ./install.sh --uninstall    devuelve todo al estado del snapshot original
+#   ./install.sh --self-test     comprueba los invariantes y no toca nada
 #
 # Idempotente: relanzarlo deja el mismo resultado.
 set -euo pipefail
@@ -44,6 +45,7 @@ while [[ $# -gt 0 ]]; do
     --yes|-y)    ASSUME_YES=1 ;;
     --dry-run)   DRY=1 ;;
     --uninstall) UNINSTALL=1 ;;
+    --self-test) exec python3 "$ROOT/lib/selftest.py" ;;
     -h|--help)   awk 'NR>1 && /^#/ {sub(/^# ?/,""); print; next} NR>1 {exit}' "$0"; exit 0 ;;
     *)           die "opción desconocida: $1" ;;
   esac

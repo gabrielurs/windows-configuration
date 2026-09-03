@@ -241,13 +241,87 @@ def apply_accent(pal: dict, home, ctx: Ctx, remove: bool = False):
     print("    powershell.exe -Command \"Stop-Process -Name explorer -Force\"")
 
 
+# ── el registro de pasos ──────────────────────────────────────────────
+# ESTA es la lista de pasos, y la única. De aquí salen el orden de ejecución, el
+# --skip y su texto de ayuda, así que añadir un paso es añadir una línea.
+#
+# Antes había tres listas que nadie comprobaba entre sí: los nueve `if`, el
+# literal del help y el orden. Ya habían derivado — el help decía
+# «icons,launcher» cuando se ejecutaba launcher antes que icons.
+#
+# `run(ctx)` devuelve True si hace falta reiniciar explorer para ver el cambio.
+#
+# Las firmas de abajo NO son uniformes: apply_taskbar recibe (snap, ctx, pal) y
+# apply_pinned_icons (pal, snap, ctx, home). Se adaptan aquí a propósito, en vez
+# de tocarlas, porque este cambio no toca comportamiento. Por lo mismo los
+# cuatro primeros pasos llaman a ctx.note() por dentro y los cinco últimos desde
+# aquí: se respeta tal cual estaba.
+Step = collections.namedtuple("Step", "key label run")
+
+
+def build_steps(pal: dict | None, home) -> list[Step]:
+    """Los pasos, en orden. Las funciones son perezosas: construir la lista no
+    ejecuta nada, y por eso se puede llamar con (None, None) solo para leer las
+    claves antes de tener la paleta cargada."""
+    def wt(ctx):      apply_wt(pal, ctx);           return False
+    def vscode(ctx):  apply_vscode(pal, home, ctx); return False
+    def ps(ctx):      apply_ps(pal, home, ctx);     return False
+
+    def accent(ctx):
+        apply_accent(pal, home, ctx)
+        desktop.broadcast_colorchange(ctx)     # escribirlo no lo aplica; hay que avisar
+        return False
+
+    def taskbar(ctx):
+        restart = desktop.apply_taskbar(ctx.snap, ctx, pal)
+        ctx.note("barra de tareas")             # se anota siempre, como antes
+        return restart
+
+    def menu(ctx):
+        if desktop.apply_context_menu(ctx.snap, ctx):
+            ctx.note("menú contextual")
+        return False
+
+    def launcher(ctx):
+        if flow.apply(pal, ctx.snap, ctx, home):
+            ctx.note("buscador flotante")
+        return False
+
+    def icons(ctx):
+        if not desktop.apply_pinned_icons(pal, ctx.snap, ctx, home):
+            return False
+        ctx.note("iconos de los anclados")
+        return True
+
+    def windhawk(ctx):
+        if not desktop.apply_windhawk(pal, ctx.snap, ctx, home):
+            return False
+        ctx.note("Windhawk")
+        return True
+
+    return [
+        Step("wt",       "Windows Terminal",       wt),
+        Step("vscode",   "VS Code",                vscode),
+        Step("ps",       "PowerShell",             ps),
+        Step("accent",   "acento de Windows",      accent),
+        Step("taskbar",  "barra de tareas",        taskbar),
+        Step("menu",     "menú contextual",        menu),
+        Step("launcher", "buscador flotante",      launcher),
+        Step("icons",    "iconos de los anclados", icons),
+        Step("windhawk", "Windhawk",               windhawk),
+    ]
+
+
+STEP_KEYS = [s.key for s in build_steps(None, None)]
+
+
 # ── main ──────────────────────────────────────────────────────────────
 def main():
     ap = argparse.ArgumentParser(description="Aplica el tema Claude CLI al lado Windows")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--uninstall", action="store_true")
     ap.add_argument("--skip", default="",
-                    help="lista separada por comas: wt,vscode,ps,accent,taskbar,menu,icons,launcher,windhawk")
+                    help="lista separada por comas: " + ",".join(STEP_KEYS))
     args = ap.parse_args()
 
     if not pathlib.Path("/mnt/c").is_dir():
@@ -261,36 +335,19 @@ def main():
         return
 
     ctx = Ctx(args.dry_run)
+    steps = build_steps(pal, home)
     skip = {s.strip() for s in args.skip.split(",") if s.strip()}
+    # Antes un `--skip windhwak` se aplicaba entero sin decir nada. Ahora para.
+    unknown = skip - {s.key for s in steps}
+    if unknown:
+        sys.exit(f"--skip no conoce: {', '.join(sorted(unknown))}\n"
+                 f"los pasos son: {', '.join(s.key for s in steps)}")
     print(f"paleta «{pal['name']}» · %USERPROFILE% = {home or 'desconocido'}\n")
 
     restart = False
-    if "wt" not in skip:
-        apply_wt(pal, ctx)
-    if "vscode" not in skip:
-        apply_vscode(pal, home, ctx)
-    if "ps" not in skip:
-        apply_ps(pal, home, ctx)
-    if "accent" not in skip:
-        apply_accent(pal, home, ctx)
-        desktop.broadcast_colorchange(ctx)
-    if "taskbar" not in skip:
-        restart |= desktop.apply_taskbar(ctx.snap, ctx, pal)
-        ctx.note("barra de tareas")
-    if "menu" not in skip:
-        if desktop.apply_context_menu(ctx.snap, ctx):
-            ctx.note("menú contextual")
-    if "launcher" not in skip:
-        if flow.apply(pal, ctx.snap, ctx, home):
-            ctx.note("buscador flotante")
-    if "icons" not in skip:
-        if desktop.apply_pinned_icons(pal, ctx.snap, ctx, home):
-            restart = True
-            ctx.note("iconos de los anclados")
-    if "windhawk" not in skip:
-        if desktop.apply_windhawk(pal, ctx.snap, ctx, home):
-            restart = True
-            ctx.note("Windhawk")
+    for step in steps:
+        if step.key not in skip:
+            restart |= bool(step.run(ctx))
 
     ctx.snap.save()
     print("\n" + ("nada que hacer" if not ctx.changed else "listo: " + ", ".join(ctx.changed)))

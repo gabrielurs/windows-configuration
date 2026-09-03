@@ -79,9 +79,11 @@ xx=${CC_GREY}"
   # la fuente es una Nerd Font; con Cascadia Code a secas salen TODOS como «?».
   # Por eso font.nerdGlyphs viene en false: se pone a true cuando font.face lo es.
   #
-  # Ojo con «--icons=auto»: el auto mira si hay terminal, NO si hay glifos. No
-  # protege de nada aquí.
-  _cci=never; [[ ${CC_NERD_GLYPHS:-0} == 1 ]] && _cci=auto
+  # always/never y NUNCA auto. Dos razones: el auto mira si hay terminal, no si
+  # hay glifos, así que no protege de nada; y encima en eza 0.18.2 —la de Ubuntu
+  # noble— «auto» no saca iconos ni con un pty delante, con lo que el ajuste
+  # dependía de la versión instalada. Con always/never hace lo que dice siempre.
+  _cci=never; [[ ${CC_NERD_GLYPHS:-0} == 1 ]] && _cci=always
 
   alias ls="eza --group-directories-first --icons=$_cci"
   alias ll="eza -l --group-directories-first --icons=$_cci --git --time-style=long-iso"

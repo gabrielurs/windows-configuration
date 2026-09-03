@@ -409,14 +409,17 @@ Por eso el interruptor está en `palette.json` y no a fuego en el código:
 "font": { "face": "Cascadia Code", "nerdGlyphs": false }
 ```
 
-Con `nerdGlyphs: false` la capa 30 pasa `--icons=never`. Si quieres iconos: instala una Nerd
+Con `nerdGlyphs: false` la capa 30 pasa `--icons=never`, y con `true`, `--icons=always`. Si quieres iconos: instala una Nerd
 Font, pon su nombre exacto en `face`, `nerdGlyphs` a `true` y relanza `./install.sh`. La
 variante oficial de Microsoft se llama **Cascadia Code NF** y sale de
 [sus releases](https://github.com/microsoft/cascadia-code/releases) — no está en winget, que
 de Nerd Fonts solo trae JetBrainsMono.
 
-Y ojo con `--icons=auto`, que suena a que resuelve esto: **el `auto` mira si hay terminal, no
-si hay glifos.** No protege de nada aquí.
+**Nunca `--icons=auto`**, y por dos razones distintas. La obvia: el `auto` mira si hay terminal,
+no si hay glifos, así que no protege de nada aquí. La que costó encontrar: en **eza 0.18.2** —la
+que trae Ubuntu 24.04— `auto` no saca iconos *en ningún caso*, ni con un pty delante y con
+cualquier `TERM`; solo `always` los dibuja. Con `auto` el resultado dependía de la versión
+instalada. `always`/`never` hacen lo que dicen siempre.
 
 Dos avisos que ahorran un rato:
 
@@ -444,6 +447,33 @@ de su release a `~/.local/bin`. Si eso falla, avisa y sigue — no bloquea nada.
 Con `CTT_TOOLS=0 ./install.sh` no se instala ninguna: el shell funciona igual, solo con menos.
 Y `--uninstall` **no las desinstala** — quita las capas del tema, pero unas herramientas que
 ya tenías instaladas no se tocan.
+
+## Comprobarlo: `--self-test`
+
+```bash
+./install.sh --self-test     # no toca nada, solo mira
+```
+
+33 invariantes: el historial, las teclas, los widgets de fzf, que `delta` ve la paleta, que
+`palette.json` genera las cuatro superficies y que `ansi.cyan` sigue siendo el teal —de eso
+dependen `bat` y `delta`—. Sale con código 1 si algo falla, así que sirve para un hook o CI.
+
+El shell se interroga **bajo un pty de verdad**, no con `zsh -i -c`. Sin terminal de control zsh
+no arranca ZLE y suelta `can't change option: zle`, que parece un fallo del tema y no lo es.
+
+Dos cosas que este fichero aprendió a base de equivocarse, y que están comentadas dentro:
+
+- **La sonda no lleva `emulate -L zsh`.** Se puso por higiene y falseaba la medida: sin `-R`,
+  `emulate` resetea las opciones de compatibilidad y `AUTO_CD` es una de ellas, así que el test
+  decía «off» mientras el shell la tenía en «on». Un test que normaliza el entorno no puede
+  medir el entorno.
+- **La comprobación de los iconos lleva un control.** Antes hacía `ls | head`, y con una tubería
+  delante eza apaga los iconos solo: la comprobación no podía fallar **nunca**. Ahora corre en un
+  directorio de juguete sin tubería, y antes de afirmar nada verifica que `--icons=always` sí
+  produce glifos. Si el control no los produce, se salta y lo dice en vez de cantar victoria.
+
+Se descubrieron rompiendo el tema a propósito y viendo que el test seguía en verde. Merece la
+pena hacerlo cada vez que se añade una comprobación.
 
 ## La capa de dotfiles
 

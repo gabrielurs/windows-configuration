@@ -140,10 +140,14 @@ primero no está en `icons.APPS` y el instalador lo dice y sigue:
 inventarse glifo y rol, que es justo lo que este repo lleva evitando. Si algún día se
 quiere, la decisión es de diseño y la línea va en `lib/icons.py`, en `APPS`.
 
-### No hay tests
+### Tests: los hay para el shell, no para Windows
 
-Todo se verificó midiendo píxeles a mano sobre capturas. Eso no viaja al repo: quien cambie
-un selector no tiene forma automática de saber si lo rompió.
+`./install.sh --self-test` comprueba 33 invariantes del shell y del render, bajo un pty de
+verdad. Sale con código 1 si algo falla.
+
+Lo que **sigue** sin cobertura es todo el lado Windows: los selectores XAML de Windhawk, la
+barra, el Explorador. Eso se verificó midiendo píxeles a mano sobre capturas y no viaja al
+repo — quien cambie un selector sigue sin forma automática de saber si lo rompió.
 
 ### Fondo de escritorio y bloqueo — descartados a propósito
 
