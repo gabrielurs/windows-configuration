@@ -1,7 +1,8 @@
-# claude-terminal-theme
+# windows-configuration
 
-Un tema derivado de la paleta que usa **Claude Code** en prosa, aplicado de una pasada
-a todo lo que ves cuando trabajas: zsh, Windows Terminal, PowerShell, la terminal
+Mi máquina Windows + WSL entera en un repo: el tema, la barra, el shell y la marcha
+atrás. El tema deriva de la paleta que usa **Claude Code** en prosa y se aplica de una
+pasada a todo lo que ves cuando trabajas: zsh, Windows Terminal, PowerShell, la terminal
 integrada de VS Code, el acento de Windows y la barra de tareas — que pasa a ser un
 dock flotante al estilo macOS.
 
