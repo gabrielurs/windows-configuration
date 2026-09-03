@@ -14,7 +14,7 @@ remoto  github.com:gabrielurs/windows-configuration  (ssh github.com-iesebre)
 | | |
 |---|---|
 | ida y vuelta | **7/7** testigos tras desinstalar y reinstalar de verdad |
-| auto-test | **61/61**, con el chuletario contrastado contra `bindkey` |
+| auto-test | **63/63**, con el chuletario contrastado contra `bindkey` |
 | snapshot | 84 entradas — 14 ficheros, 60 valores, 10 claves completas |
 | mods de Windhawk | 10 configurados, 178 ajustes |
 | rama de git | servicio activo en `127.0.0.1:8756` |
@@ -141,6 +141,28 @@ Esto es la razón de que el auto-test compare contra un **widget esperado** y no
 «¿está atado?». La tecla respondía; hacía otra cosa. Un chuletario que miente es peor que no
 tener chuletario.
 
+### Lo que un banco de pruebas con pty NO puede tocar
+
+Salió repasando el funcionamiento en terminal, y conviene saberlo antes de perder una tarde
+persiguiendo un fantasma: bajo el pty de los tests **el pty no es el terminal de control de
+zsh**, así que las señales del terminal no le llegan.
+
+```
+Ctrl+C  no aborta la línea   ← tampoco en la configuración anterior a este repo
+WINCH   no dispara el trap   ← la tira sigue con el ancho viejo, y no se puede
+                               distinguir «el trap no sirve» de «la señal no llegó»
+fzf     no llega a pintarse  ← 19 bytes, idénticos CON y SIN la capa 40
+```
+
+Lo importante de esos tres: **se comparó contra la configuración sin la capa nueva y da
+exactamente lo mismo**. No son regresiones; son el límite del banco. La comparación es la que
+convierte «no funciona» en «no se puede medir», y hay que hacerla antes de tocar nada.
+
+Un aviso concreto de ahí: se escribió un `TRAPINT` para limpiar la tira al abortar y pareció
+romper Ctrl+C. **No lo rompía** — Ctrl+C ya no funcionaba en el banco de antes. Se quitó
+igualmente, pero por el motivo correcto: no se puede probar, y un TRAPINT equivocado se traga
+la interrupción. Si alguien lo retoma, con las manos en un terminal de verdad.
+
 ### El modo pendiente de zsh no se puede pintar
 
 Al pulsar un operador (`c`, `d`, `y`) zsh lee la siguiente tecla **dentro del widget**, sin
@@ -233,9 +255,23 @@ que la tiene cambia de IID en cada build de Windows. Devolvió 4 correctamente e
 Si algún día devuelve 0, la banda lo dice y no hace nada — anterior y siguiente siguen yendo,
 que esos son atajos del sistema.
 
+### La tira y el scrollback
+
+Dos fallos que solo aparecen usando la shell, no leyendo el código, y que están arreglados:
+
+- Ejecutar una orden desde NORMAL dejaba **las tres filas de la tira clavadas en el
+  scrollback**, para siempre. Ahora `zle-line-finish` la borra y repinta antes de que la línea
+  se acepte.
+- Tras ejecutar, el prompt siguiente **seguía en NORMAL**: zsh conserva el keymap entre
+  líneas. `zle-line-init` hace ahora `zle -K viins`. En una shell, lo que quieres al ver un
+  prompt nuevo es escribir.
+
+Queda uno sin arreglar y a propósito: abortar con **Ctrl+C** desde NORMAL sí deja la tira en el
+scrollback, porque `zle-line-finish` no corre con un SIGINT. Ver la sección del pty.
+
 ### Tests: los hay para el shell, no para Windows
 
-`./install.sh --self-test` comprueba 61 invariantes del shell y del render, bajo un pty de
+`./install.sh --self-test` comprueba 63 invariantes del shell y del render, bajo un pty de
 verdad. Sale con código 1 si algo falla.
 
 De los atajos cubre lo que se puede cubrir desde aquí: que cada tecla anunciada en el

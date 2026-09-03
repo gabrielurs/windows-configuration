@@ -447,6 +447,22 @@ def check_keys(r: Report, pal: dict, out: str) -> None:
             mal.append(f"{mode}:{tok} es «{seq}», no «{want}»")
     r.check("y atado a lo que el chuletario dice", not mal, "; ".join(mal[:3]))
 
+    # Dos invariantes que solo se ven USANDO la shell, no leyéndola, y que por
+    # eso son fáciles de perder al reordenar la capa. Se comprueban sobre el
+    # fuente porque el efecto —lo que queda en el scrollback— no se puede medir
+    # desde una sonda que no es un widget de ZLE.
+    capa = (pathlib.Path(__file__).resolve().parent.parent
+            / "shell/claude-40-keys.zsh").read_text(encoding="utf-8")
+    ini = capa.split("_claude_keys_line_init() {", 1)[-1].split("}", 1)[0]
+    fin = capa.split("_claude_keys_line_finish() {", 1)[-1].split("\n}", 1)[0]
+    # zsh CONSERVA el keymap entre líneas: sin esto, ejecutas desde NORMAL y el
+    # prompt siguiente sigue en NORMAL, con la tira puesta y sin tocar nada.
+    r.check("cada línea nueva empieza en INSERT", "zle -K viins" in ini)
+    # Sin esto, cada orden lanzada desde NORMAL deja sus filas de ayuda clavadas
+    # en el scrollback para siempre.
+    r.check("la tira se borra antes de aceptar la línea",
+            "_claude_keys_bar=\"\"" in fin and "reset-prompt" in fin)
+
 
 def shlex_q(s: str) -> str:
     return "'" + s.replace("'", "'\\''") + "'"

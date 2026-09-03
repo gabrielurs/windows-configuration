@@ -458,7 +458,7 @@ ya tenías instaladas no se tocan.
 ./install.sh --self-test     # no toca nada, solo mira
 ```
 
-61 invariantes: el historial, las teclas, los widgets de fzf, que `delta` ve la paleta, que
+63 invariantes: el historial, las teclas, los widgets de fzf, que `delta` ve la paleta, que
 `palette.json` genera las seis superficies y que `ansi.cyan` sigue siendo el teal —de eso
 dependen `bat` y `delta`—. Sale con código 1 si algo falla, así que sirve para un hook o CI.
 
@@ -622,6 +622,11 @@ lo vigila `--self-test`.
 - **El modo visual de zsh no cambia `$KEYMAP`.** Sigue diciendo `vicmd` y usa el keymap
   `visual` como una capa por encima. Preguntando solo por `$KEYMAP`, la tira anunciaba NORMAL
   mientras seleccionabas. Lo que hay que mirar es `$REGION_ACTIVE`.
+- **Cada línea empieza en INSERT, y hay que pedirlo.** zsh conserva el keymap entre líneas:
+  sin un `zle -K viins`, ejecutas algo desde NORMAL y el prompt siguiente sigue en NORMAL, con
+  la tira puesta y sin haber tocado nada. Y la tira se **borra antes** de que la línea se
+  acepte, porque si no cada orden lanzada desde NORMAL deja sus tres filas de ayuda clavadas en
+  el scrollback para siempre. Los dos se vieron usando la shell, no leyéndola.
 - **En el menú de completado no se ata nada, y es una decisión.** Hubo un `hjkl` para moverse
   por él. Se quitó al probarlo: en el menú, una tecla imprimible sin atar cierra el menú y se
   escribe, que es como se acota la lista —`cat <Tab>`, tecleas `l`, y te quedas con los que

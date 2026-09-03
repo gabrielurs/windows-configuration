@@ -159,15 +159,30 @@ _claude_keys_render() {
 }
 
 # ── ganchos de ZLE ────────────────────────────────────────────────────
+# Cada línea empieza en INSERT, y hay que pedirlo: zsh CONSERVA el keymap entre
+# líneas. Sin este `zle -K viins`, ejecutas un comando desde NORMAL y el prompt
+# siguiente sigue en NORMAL — con la tira puesta y sin haber pulsado nada. En
+# una shell eso no es fidelidad a vi, es una trampa: lo que quieres al ver un
+# prompt nuevo es escribir.
 _claude_keys_line_init() {
+  zle -K viins
   _claude_keys_setmode
   _claude_keys_render
   _claude_keys_cursor $_claude_keys_mode
 }
+
 _claude_keys_line_finish() {
-  # Sin esto, la forma de NORMAL se le queda al programa que lances a
-  # continuación: aceptas la línea en modo comando y `vim` arranca con el cursor
-  # del tema en vez del suyo.
+  # La tira se BORRA antes de que la línea se acepte. Si no, cada comando que
+  # ejecutes desde NORMAL deja sus tres filas de ayuda clavadas en el
+  # scrollback, para siempre. Se vio ejecutando `echo hola` desde NORMAL y
+  # mirando lo que quedaba arriba.
+  if [[ -n $_claude_keys_bar ]]; then
+    _claude_keys_bar=""
+    zle reset-prompt
+  fi
+  # Y la forma del cursor vuelve a la de INSERT: si no, aceptas la línea en modo
+  # comando y el programa que lances arranca con el cursor del tema en vez del
+  # suyo.
   _claude_keys_cursor insert
 }
 _claude_keys_keymap_select() {
@@ -417,3 +432,44 @@ _claude_keys_toggle_widget() {
 zle -N _claude_keys_toggle_widget
 bindkey -M viins '^g' _claude_keys_toggle_widget
 bindkey -M vicmd '^g' _claude_keys_toggle_widget
+
+# ── al cambiar el tamaño del terminal ─────────────────────────────────
+# La tira se corta al ancho que había cuando se pintó. Sin esto, estrechas la
+# ventana con NORMAL puesto y las filas siguen midiendo lo de antes hasta que
+# cambies de modo.
+#
+# Solo recalcula la VARIABLE. Aquí hubo además un `zle reset-prompt`, y se ha
+# quitado: zsh ya repinta el prompt al recibir WINCH y, como el prompt lleva
+# `${_claude_keys_bar}` con PROMPT_SUBST, ese repintado ya coge el valor nuevo.
+# Llamar a `zle` desde un trap es meter una llamada de ZLE donde no hay widget,
+# y no compensa por un ajuste cosmético.
+#
+# Se define solo si nadie más tiene el trap: es una función con nombre fijo y
+# pisarla sería quitarle el suyo a otro.
+#
+# AVISO: esto NO está verificado. Bajo el pty de un banco de pruebas el SIGWINCH
+# no llega a zsh —el pty no es su terminal de control—, así que se midió que la
+# tira seguía con el ancho viejo y no se pudo distinguir «el trap no sirve» de
+# «la señal no llegó». Se deja porque recalcular una cadena no puede romper
+# nada; si algún día se comprueba a mano, que se anote aquí.
+if ! (( $+functions[TRAPWINCH] )); then
+  TRAPWINCH() { _claude_keys_render }
+fi
+
+# ── Ctrl+C: PROBADO Y DESCARTADO ──────────────────────────────────────
+# Al abortar con Ctrl+C desde NORMAL, la tira se queda en el scrollback: sus
+# tres filas ya estaban pintadas y `zle-line-finish` —que es quien la borra al
+# aceptar una línea— NO corre cuando llega un SIGINT.
+#
+# Se probó un TRAPINT que la limpiaba y devolvía `128 + $1` para no tragarse la
+# señal. Se ha quitado, y el motivo es la falta de prueba, no una prueba en
+# contra: **Ctrl+C no se puede ejercitar desde un banco de pruebas** —bajo el
+# pty del test la señal no llega al grupo de procesos de zsh, y la línea no se
+# aborta ni con el trap ni sin él ni en la configuración de antes de todo
+# esto—. O sea que no hay forma de saber si ese trap es inocuo.
+#
+# Y un TRAPINT que se equivoque se traga la interrupción: Ctrl+C dejaría de
+# abortar la línea. Arriesgar eso para quitar tres filas del scrollback en un
+# camino poco frecuente —normalmente se aborta escribiendo, o sea en INSERT,
+# donde no hay tira— es un mal cambio. Si alguien lo retoma, que lo pruebe con
+# las manos en un terminal real, no aquí.
