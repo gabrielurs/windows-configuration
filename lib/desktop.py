@@ -54,6 +54,10 @@ GLOM = {
 # nativa — compacto, extensiones a la vista, ocultos visibles pero apagados.
 EXPLORER = [
     (ADVANCED, "UseCompactMode", "REG_DWORD", "1", "espaciado compacto"),
+    # Dos superficies menos que pintan un gris propio y no se pueden recolorear:
+    # la barra de estado (#1C1C1C) y el panel de detalles (#141618). v2 tambien
+    # pide quitar el panel en su seccion 06.
+    (ADVANCED, "ShowStatusBar", "REG_DWORD", "0", "sin barra de estado"),
     (ADVANCED, "HideFileExt",    "REG_DWORD", "0", "extensiones siempre a la vista"),
     (ADVANCED, "Hidden",         "REG_DWORD", "1", "mostrar ficheros ocultos"),
     (ADVANCED, "ShowSuperHidden","REG_DWORD", "0", "pero no los del sistema"),

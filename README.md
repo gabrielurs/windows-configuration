@@ -135,6 +135,24 @@ Dos detalles que cuestan caro si no se saben:
   `TaskListButtonPanel` a `TaskListLabeledButtonPanel`. Hay que apuntar a las dos, o el
   fondo se queda sin pintar en cuanto se activan las etiquetas
 
+**El Explorador va en un solo tono, y el tono es el de Windows.** La lista, el árbol y la
+cabecera de columnas son Win32 y están clavados en `#191919`: no ceden por estilo, ni por
+`themeResourceVariables`, ni hay mod que exponga ese color. Como esa mitad no se puede
+mover, la única forma de que la ventana sea de un color es bajar el chrome a reunirse con
+ella — al revés no se puede.
+
+Medido, el cuerpo tenía seis grises: `#191919` (Win32), `#0A0D0F` (nuestro chrome),
+`#141618` (panel de detalles), `#1C1C1C` (barra de estado), `#202020` (franja del título)
+y `#333333` (filetes). Quedan dos: `#191919` en todo, y el `#202020` de la franja, que a
+siete niveles de diferencia ya no canta — antes eran veintidós.
+
+Los otros dos se quitan de raíz en vez de recolorearse: `ShowStatusBar=0` y ocultar el
+panel de detalles, que además es lo que pide la sección 06 del diseño. Se van dos
+superficies enteras que no se podían pintar.
+
+El coste es real: el Explorador deja de llevar el negro del tema. Para volver al negro
+asumiendo dos tonos, `explorer.surfaces.chrome` a `#0A0D0F`.
+
 **Los botones de la ventana se tapan solos si te descuidas.** Pintar
 `Grid#TabContainerGrid` —el contenedor de la franja del título— con un fondo opaco hace
 desaparecer minimizar, maximizar y cerrar. No es cosa de Windows ni del mod del borde
