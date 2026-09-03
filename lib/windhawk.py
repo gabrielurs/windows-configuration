@@ -338,7 +338,10 @@ def explorer_settings(pal: dict) -> dict[str, object]:
     s = pal["surfaces"]
     chrome = argb(es.get("chrome", s["bgAlt"]))   # barras: comandos y direcciones
     canvas = argb(es.get("tabs", s["bg"]))        # tira de pestañas y lienzo XAML
+    tabsel = argb(es.get("tabSelected", s["bgAlt"]))   # la pestaña activa
     field = argb(es.get("input", s["bg"]))        # pastilla de direcciones y búsqueda
+    under = argb(es.get("tabUnderline", "#4DD6C1"), es.get("tabUnderlineAlpha", "4D"))
+    rad = int(es.get("inputRadius", 6))
     # el panel de navegación no está: es Win32, no hay target XAML al que apuntar
     edge = argb(es.get("border", s["border"]))
 
@@ -355,22 +358,28 @@ def explorer_settings(pal: dict) -> dict[str, object]:
             f'Background:=<SolidColorBrush Color="{chrome}" />']),
         ("Grid#FileExplorerAddressBarGrid", [
             f'Background:=<SolidColorBrush Color="{field}" />',
-            "CornerRadius=6", "BorderThickness=1",
+            f"CornerRadius={rad}", "BorderThickness=1",
             f'BorderBrush:=<SolidColorBrush Color="{edge}" />']),
         # el nodo real de la pastilla; sin este, el fondo se queda a medias
         ("FileExplorerExtensions.AddressBarControl > Grid#PART_LayoutRoot > Grid#NormalModeGrid", [
             f'Background:=<SolidColorBrush Color="{field}" />',
-            "CornerRadius=6", "BorderThickness=1",
+            f"CornerRadius={rad}", "BorderThickness=1",
             f'BorderBrush:=<SolidColorBrush Color="{edge}" />']),
         # caja de búsqueda
         ("AutoSuggestBox#FileExplorerSearchBox > Grid#LayoutRoot > TextBox > Grid@CommonStates > Border#BorderElement", [
             f'Background:=<SolidColorBrush Color="{field}" />',
             f'BorderBrush:=<SolidColorBrush Color="{edge}" />',
-            "CornerRadius=6"]),
+            f"CornerRadius={rad}"]),
         # pestañas
         ("Grid#TabContainerGrid", [f'Background:=<SolidColorBrush Color="{canvas}" />']),
         ("TabViewItem > Grid#LayoutRoot > Canvas > Microsoft.UI.Xaml.Shapes.Path#SelectedBackgroundPath", [
-            f'Fill:=<SolidColorBrush Color="{chrome}" />']),
+            f'Fill:=<SolidColorBrush Color="{tabsel}" />']),
+        # el borde teal bajo las pestañas: en v2 es lo que separa el chrome del
+        # contenido, ahora que los grises no lo hacen por diferencia de luz
+        ("Grid#TabContainerGrid > Border#LeftBottomBorderLine", [
+            f'Background:=<SolidColorBrush Color="{under}" />']),
+        ("Grid#TabContainerGrid > Border#RightBottomBorderLine", [
+            f'Background:=<SolidColorBrush Color="{under}" />']),
         # el lienzo
         ("Grid#DetailsViewControlRootGrid", [f'Background:=<SolidColorBrush Color="{canvas}" />']),
         ("Grid#HomeViewRootGrid", [f'Background:=<SolidColorBrush Color="{canvas}" />']),

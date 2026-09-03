@@ -148,12 +148,17 @@
         }
       ],
       "surfaces": {
-        "_comment": "Grises propios del Explorador, y no los de surfaces. Windows pinta la lista, el arbol y la barra de estado en #191919/#1C1C1C y ahi el styler no entra; si el chrome se queda en #07090A el salto es un escalon de 16 niveles y la ventana parece rota. Estos valores suben el chrome hasta rozar el #191919, manteniendo el orden — tira de pestanas < barra de comandos < lista — para que lea como capas.",
+        "_comment": "Valores de la seccion 06 de v2, medidos de su maqueta. v2 NO armoniza con el #191919 de Windows: vuelve al gris oscuro del tema y deja que el escalon lea como capas, apoyandose en el borde teal bajo las pestanas para separar chrome de contenido. Es la decision contraria a la que tomamos antes; el underline es lo que la sostiene.",
         "_win32": "#191919",
-        "tabs": "#101215",
-        "chrome": "#15181B",
-        "input": "#101215",
-        "border": "#22262B"
+        "tabs": "#0A0D0F",
+        "tabSelected": "#07090A",
+        "chrome": "#080B0D",
+        "input": "#0A0D0F",
+        "border": "#1A2026",
+        "tabUnderline": "#4DD6C1",
+        "tabUnderlineAlpha": "4D",
+        "inputRadius": 5,
+        "tabRadius": 7
       }
     },
     "gitBranch": {
