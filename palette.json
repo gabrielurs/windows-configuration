@@ -182,6 +182,12 @@
       "searchGlyph": "❯",
       "searchGlyphRole": "teal",
       "searchFont": "Cascadia Mono, Segoe UI Symbol, Segoe UI"
+    },
+    "launcher": {
+      "_comment": "Buscador flotante estilo Spotlight. Windows no trae nada asi y su Win+S no se deja pintar —la lupa es un icono bicolor que el styler no toca—, asi que en vez de pelearse con el se pone al lado uno que si obedece.",
+      "hotkey": "Ctrl + Space",
+      "font": "Cascadia Mono",
+      "cornerRadius": 12
     }
   }
 }

@@ -252,6 +252,32 @@ Windows implica una etiqueta pegada a cada icono. Con diez ventanas abiertas son
 títulos truncados comiéndose la barra entera, así que `combineButtons` va en `always` —
 un icono por app. `whenFull` y `never` siguen ahí si los quieres.
 
+## El buscador flotante
+
+Windows no trae un Spotlight, y el suyo —Win+S— **no se deja pintar**: el mod llega al
+panel (medido, su fondo es `#07090A`), pero la lupa es un icono **bicolor**, `#0078D3`
+azul con verde, así que no es un glifo monocromo al que cambiarle `Glyph` y `Foreground`.
+Ahí se acaba lo que el styler puede hacer.
+
+Así que en vez de seguir peleándose con él, el tema pone al lado uno que sí obedece:
+**Flow Launcher**, cuyos temas son ficheros XAML sueltos. `lib/flow.py` genera el suyo
+desde `palette.json`, igual que el resto del repo genera el `.zsh-theme` o el perfil de
+PowerShell — un solo sitio donde cambiar un color.
+
+Sale centrado con **Ctrl+Espacio**, fondo `#07090A`, borde teal como la ventana activa,
+la caja de consulta en Cascadia Mono con el cursor en teal, y las rutas de los resultados
+también monoespaciadas. Los títulos se quedan en la fuente de sistema, por el mismo motivo
+que en el Explorador: legibilidad con muchas filas.
+
+Dos cosas que cuestan si no se saben:
+
+- **Flow reescribe su `Settings.json` al salir.** Hay que pararlo antes de tocarlo o se
+  lleva por delante lo que acabas de poner. Mismo patrón que el blob de anclados.
+- **El tema necesita las 19 claves.** Si falta una, `GetResourceDictionary` revienta con
+  `NullReferenceException`, Flow cae al tema por defecto y **no dice nada en la interfaz**:
+  el único sitio donde se ve es su log. Las que no se cambian van igualmente, como paso
+  directo al estilo base.
+
 ## ¿Y sin Windhawk?
 
 Casi todo. Por registro puedes tener el acento, el modo oscuro, la transparencia, el

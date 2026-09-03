@@ -37,9 +37,22 @@ _windhawk_install() {
     --accept-package-agreements --accept-source-agreements 2>&1 | tr -d '\r' | tail -3
 }
 
+_flow_install() {
+  step "instalando Flow Launcher con winget (el buscador flotante)"
+  winget.exe install --id Flow-Launcher.Flow-Launcher --source winget \
+    --accept-package-agreements --accept-source-agreements --silent 2>&1 | tr -d '\r' | tail -3
+}
+
 _chsh_zsh() {
   step "poniendo zsh como shell por defecto"
   chsh -s "$(command -v zsh)" || warn "chsh falló; hazlo a mano: chsh -s $(command -v zsh)"
+}
+
+_win_home() {
+  # %USERPROFILE% visto desde WSL, sin cablear el nombre de usuario
+  local w
+  w=$(cmd.exe /c 'echo %USERPROFILE%' 2>/dev/null | tr -d '\r')
+  [[ -n $w ]] && wslpath -u "$w" 2>/dev/null
 }
 
 # ── detección ─────────────────────────────────────────────────────────
@@ -69,6 +82,12 @@ deps_scan() {
     if [[ ! -d "/mnt/c/Program Files/Windhawk" ]] && command -v winget.exe >/dev/null; then
       DEPS_MISSING+=("Windhawk — hace falta para el dock flotante")
       DEPS_ACTIONS+=(_windhawk_install)
+    fi
+    # El buscador flotante. Windows no trae equivalente y su Win+S no se deja
+    # pintar, así que el tema pone al lado uno que sí acepta paleta propia.
+    if [[ ! -d "$(_win_home)/AppData/Local/FlowLauncher" ]] && command -v winget.exe >/dev/null; then
+      DEPS_MISSING+=("Flow Launcher — el buscador flotante de Ctrl+Espacio")
+      DEPS_ACTIONS+=(_flow_install)
     fi
   fi
 }

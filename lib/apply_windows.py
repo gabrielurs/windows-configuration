@@ -9,7 +9,7 @@ from __future__ import annotations
 import argparse, collections, datetime, glob, json, os, pathlib, shutil, subprocess, sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-import render, state, desktop, uninstall  # noqa: E402
+import render, state, desktop, uninstall, flow  # noqa: E402
 
 STAMP = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
 MARKER_KEYS_VSCODE = ("terminal.background", "terminal.ansiCyan", "panel.background")
@@ -247,7 +247,7 @@ def main():
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--uninstall", action="store_true")
     ap.add_argument("--skip", default="",
-                    help="lista separada por comas: wt,vscode,ps,accent,taskbar,menu,icons,windhawk")
+                    help="lista separada por comas: wt,vscode,ps,accent,taskbar,menu,icons,launcher,windhawk")
     args = ap.parse_args()
 
     if not pathlib.Path("/mnt/c").is_dir():
@@ -280,6 +280,9 @@ def main():
     if "menu" not in skip:
         if desktop.apply_context_menu(ctx.snap, ctx):
             ctx.note("menú contextual")
+    if "launcher" not in skip:
+        if flow.apply(pal, ctx.snap, ctx, home):
+            ctx.note("buscador flotante")
     if "icons" not in skip:
         if desktop.apply_pinned_icons(pal, ctx.snap, ctx, home):
             restart = True
