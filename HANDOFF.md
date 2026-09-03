@@ -14,7 +14,7 @@ remoto  github.com:gabrielurs/windows-configuration  (ssh github.com-iesebre)
 | | |
 |---|---|
 | ida y vuelta | **7/7** testigos tras desinstalar y reinstalar de verdad |
-| auto-test | **58/58**, con el chuletario contrastado contra `bindkey` |
+| auto-test | **61/61**, con el chuletario contrastado contra `bindkey` |
 | snapshot | 84 entradas — 14 ficheros, 60 valores, 10 claves completas |
 | mods de Windhawk | 10 configurados, 178 ajustes |
 | rama de git | servicio activo en `127.0.0.1:8756` |
@@ -131,6 +131,25 @@ AutoHotkey64.exe /ErrorStdOut script.ahk     # el error sale por stdout
 Ojo al leerlo: escribe en la página de códigos del sistema, no en UTF-8. Con `text=True` en
 Python el propio decodeo revienta y **tapa el error que querías ver**.
 
+### fzf se queda con `^R` también en `vicmd`
+
+Lo ata él, en la línea 115 de su `key-bindings.zsh`, que la capa 30 sourcea. O sea que no
+basta con **no** atarlo en la capa 40: hay que quitárselo con un `bindkey -M vicmd '^r' redo`
+explícito. Si no, la tira anuncia «deshacer / rehacer» y `^R` abre el buscador difuso.
+
+Esto es la razón de que el auto-test compare contra un **widget esperado** y no solo contra
+«¿está atado?». La tecla respondía; hacía otra cosa. Un chuletario que miente es peor que no
+tener chuletario.
+
+### El modo pendiente de zsh no se puede pintar
+
+Al pulsar un operador (`c`, `d`, `y`) zsh lee la siguiente tecla **dentro del widget**, sin
+volver al bucle: no dispara `zle-keymap-select` ni `zle-line-pre-redraw`, así que no hay dónde
+repintar. La tira se quedaba en NORMAL mientras el chuletario tenía un modo entero para eso.
+
+Comprobado conduciendo una shell de verdad y mirando la pantalla. `showIn` ya no lo incluye y
+el modo se llama «OBJETOS»: es la referencia de `claude-keys`, no una tira.
+
 ### El modo visual de zsh no cambia `$KEYMAP`
 
 Sigue diciendo `vicmd` y usa el keymap `visual` como una capa por encima; `zle-keymap-select`
@@ -197,7 +216,7 @@ que esos son atajos del sistema.
 
 ### Tests: los hay para el shell, no para Windows
 
-`./install.sh --self-test` comprueba 58 invariantes del shell y del render, bajo un pty de
+`./install.sh --self-test` comprueba 61 invariantes del shell y del render, bajo un pty de
 verdad. Sale con código 1 si algo falla.
 
 De los atajos cubre lo que se puede cubrir desde aquí: que cada tecla anunciada en el

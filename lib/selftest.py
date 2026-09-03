@@ -63,9 +63,13 @@ print "has_render=${+functions[_claude_keys_render]}"
 print "has_command=${+functions[claude-keys]}"
 print "prompt_has_bar=${${PROMPT}[(I)*_claude_keys_bar*]}"
 print "pre_redraw=${widgets[zle-line-pre-redraw]}"
+# COLUMNS fijo a 80: es el caso peor y el que hace falta para saber si el tope
+# de filas se respeta. Sin fijarlo, la medida depende del ancho del pty.
+COLUMNS=80
 for _m in normal visual viopp insert; do
   _claude_keys_mode=$_m; CC_KEYS_ON=1; _claude_keys_render
   print "bar_${_m}_len=${#_claude_keys_bar}"
+  print "bar_${_m}_lines=${#${(f)_claude_keys_bar}}"
 done
 CC_KEYS_ON=0; _claude_keys_mode=normal; _claude_keys_render
 print "bar_off_len=${#_claude_keys_bar}"
@@ -74,7 +78,10 @@ print "bar_off_len=${#_claude_keys_bar}"
 print "BINDINGS_BEGIN"
 for _spec in "${CC_SELFTEST_TOKENS[@]}"; do
   _km=${_spec%%|*}; _rest=${_spec#*|}; _mode=${_rest%%|*}; _tok=${_rest#*|}
-  [[ $_tok == "<ESC>" ]] && _tok=$'\e'
+  case $_tok in
+    "<ESC>")  _tok=$'\e' ;;
+    "<ALTC>") _tok=$'\ec' ;;
+  esac
   _out=$(bindkey -M $_km -- "$_tok" 2>&1)
   _first=$(bindkey -M $_km -- "${_tok[1]}" 2>&1)
   print -r -- "BIND|$_km|$_mode|$_tok|${_out##* }|${_first##* }"
@@ -109,13 +116,44 @@ KEYMAP_OF = {"normal": "vicmd", "insert": "viins", "visual": "visual", "viopp": 
 FALLBACK_OF = {"visual": "vicmd", "viopp": "vicmd"}
 
 
+# Lo que el chuletario escribe para que lo lea un humano, traducido a lo que
+# entiende `bindkey`. Sin esto, «Alt+c» se preguntaba tal cual —no existe— y
+# pasaba por el respaldo del primer carácter, o sea sin comprobar nada.
+TOK_ALIAS = {"Esc": "<ESC>", "Alt+c": "<ALTC>"}
+
+# Las teclas donde el chuletario dice algo CONCRETO y donde equivocarse no da
+# ningún error visible: la tecla responde, solo que hace otra cosa.
+SEMANTICA = {
+    ("vicmd", "u"): "undo",
+    ("vicmd", "^r"): "redo",
+    ("vicmd", "."): "vi-repeat-change",
+    ("vicmd", "v"): "visual-mode",
+    ("vicmd", "V"): "visual-line-mode",
+    ("vicmd", "/"): "vi-history-search-backward",
+    ("vicmd", "cs"): "change-surround",
+    ("vicmd", "ds"): "delete-surround",
+    ("vicmd", "ys"): "add-surround",
+    ("vicmd", "^x^e"): "edit-command-line",
+    ("viins", "<ESC>"): "vi-cmd-mode",
+    ("viins", "jk"): "vi-cmd-mode",
+    ("viins", "^a"): "beginning-of-line",
+    ("viins", "^e"): "end-of-line",
+    ("viins", "^w"): "backward-kill-word",
+    ("viins", "^x^e"): "edit-command-line",
+    ("viopp", "iw"): "select-in-word",
+    ("viopp", 'i"'): "select-quoted",
+    ("viopp", "i("): "select-bracketed",
+    ("visual", "S"): "add-surround",
+}
+
+
 def announced_tokens(pal: dict) -> list[tuple[str, str, str]]:
     """(modo, keymap, tecla) por cada atajo que el chuletario enseña."""
     out = []
     for mode, m in pal["keys"]["shell"]["modes"].items():
         for keys, _desc in m["hints"]:
             for tok in keys.split():
-                out.append((mode, KEYMAP_OF[mode], "<ESC>" if tok == "Esc" else tok))
+                out.append((mode, KEYMAP_OF[mode], TOK_ALIAS.get(tok, tok)))
     return out
 
 
@@ -347,6 +385,14 @@ def check_keys(r: Report, pal: dict, out: str) -> None:
     r.check("con el interruptor en off no hay tira",
             int(f.get("bar_off_len") or 0) == 0, f.get("bar_off_len", "?"))
 
+    # El tope de filas, medido a 80 columnas, que es donde duele. Sin él la
+    # lista entera se comía seis filas del terminal cada vez que pulsabas Esc.
+    tope = int(pal["keys"]["shell"].get("maxLines", 3))
+    for mode in pal["keys"]["shell"]["showIn"]:
+        n = int(f.get(f"bar_{mode}_lines") or 0)
+        r.check(f"la tira de {mode} cabe en {tope} filas a 80 columnas",
+                0 < n <= tope, f"{n} filas")
+
     # ── el chuletario contra bindkey ──
     rows = bind_rows(out)
     esperadas = len(announced_tokens(pal))
@@ -368,7 +414,10 @@ def check_keys(r: Report, pal: dict, out: str) -> None:
         caret = len(tok) > 1 and tok.startswith("^")
         if seq != "undefined-key":
             continue
-        if not caret and first != "undefined-key":
+        # `self-insert` no es una atadura, es «esta tecla se escribe a sí
+        # misma». En viins TODO carácter imprimible cae ahí, así que aceptarlo
+        # como respaldo hacía que cualquier atajo inventado de INSERT pasara.
+        if not caret and first not in ("undefined-key", "self-insert"):
             continue
         huerfanas.append(f"{mode}:{tok}")
     # Las capas `visual` y `viopp` resuelven en vicmd lo que no definen, así que
@@ -386,6 +435,17 @@ def check_keys(r: Report, pal: dict, out: str) -> None:
         huerfanas = [t for t in huerfanas if t not in alive]
     r.check("cada atajo anunciado está atado", not huerfanas,
             "sin atar: " + ", ".join(huerfanas[:6]))
+
+    # Estar atada no basta: hay que estarlo A LO QUE EL CHULETARIO DICE. Esto
+    # existe porque `^r` en vicmd anunciaba «rehacer» y abría el buscador de
+    # fzf —que lo ata él solo, en su propio key-bindings.zsh— y la comprobación
+    # de arriba lo daba por bueno, porque atado sí estaba.
+    mal = []
+    for km, mode, tok, seq, _first in rows:
+        want = SEMANTICA.get((km, tok))
+        if want and seq != want:
+            mal.append(f"{mode}:{tok} es «{seq}», no «{want}»")
+    r.check("y atado a lo que el chuletario dice", not mal, "; ".join(mal[:3]))
 
 
 def shlex_q(s: str) -> str:

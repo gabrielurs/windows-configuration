@@ -458,13 +458,15 @@ ya tenías instaladas no se tocan.
 ./install.sh --self-test     # no toca nada, solo mira
 ```
 
-58 invariantes: el historial, las teclas, los widgets de fzf, que `delta` ve la paleta, que
+61 invariantes: el historial, las teclas, los widgets de fzf, que `delta` ve la paleta, que
 `palette.json` genera las seis superficies y que `ansi.cyan` sigue siendo el teal —de eso
 dependen `bat` y `delta`—. Sale con código 1 si algo falla, así que sirve para un hook o CI.
 
 Los atajos llevan su propia sección, y ahí la comprobación que importa es una: **cada tecla
 que el chuletario anuncia se le pregunta a `bindkey`**. Si alguien añade una línea a
-`palette.json` y se olvida de atarla, el test lo dice. Es la única forma de que la ayuda no
+`palette.json` y se olvida de atarla, el test lo dice. Y no solo que esté atada: que lo esté
+**a lo que el chuletario dice**, porque `^r` sí estaba atado —a fzf— mientras la tira
+prometía «rehacer». Es la única forma de que la ayuda no
 acabe mintiendo, que es peor que no tenerla. En el lado Windows, además, se carga el script
 generado **con el propio AutoHotkey** (`/ErrorStdOut`): sin eso, un error de sintaxis abre un
 diálogo en el escritorio y desde WSL solo se ve un proceso que no responde.
@@ -514,11 +516,16 @@ a abrir una pestaña nueva y no hay que reinstalar nada para cambiarlo.
 volver a INSERT desaparece: mientras escribes, el prompt es exactamente el de siempre.
 
 ```
- NORMAL   h l mover   j k historial   w b e palabra   0 ^ $ linea   i a I A insertar
-          ciw diw cambiar/borrar palabra   ci" ci( dentro de   cs ds ys rodear
-          dd D C borrar   u ^r deshacer/rehacer   / n N buscar   v V visual
+ NORMAL   h l  w b e mover   j k historial   0 ^ $ extremos   f F ; , ir a un caracter
+          i a I A insertar   x dd D borrar   S C cambiar linea / final
+          ciw ci" ci( cambiar dentro de   cs ds ys rodear   y p P copiar / pegar   …
  ~/projects/claude-terminal-theme on main ❯ git commit -m "algo"
 ```
+
+Ese `…` del final es el **tope de filas** (`keys.shell.maxLines`, 3 de fábrica). Sin él,
+en un terminal de 80 columnas la lista entera ocupaba **seis filas** — un cuarto de la
+pantalla cada vez que pulsas `Esc`, y eso ya no es which-key, es volcar el manual encima
+del prompt. Lo que no cabe está en `claude-keys`, que sí va completo.
 
 Lo que de verdad se gana no son las flechas: son los **objetos de texto**. `ci"` cambia lo de
 dentro de las comillas de un `git commit -m "…"` sin contar caracteres, `ciw` la palabra bajo
@@ -539,6 +546,14 @@ Tres decisiones que no son obvias:
   deja el modo visual inalcanzable — el chuletario anunciaba un VISUAL al que no había forma
   de llegar. El editor está en `Ctrl+X Ctrl+E`, que además es la combinación de bash de toda
   la vida y funciona en los dos modos.
+- **En NORMAL, `Ctrl+R` es `redo`; el buscador de fzf se queda en INSERT.** fzf ata `^R` en
+  `vicmd` **él solo**, así que hay que quitárselo a la fuerza: si no, la tira anuncia
+  «rehacer» y lo que se abre es el buscador. En NORMAL se busca con `/`, que es lo que dice
+  la propia tira.
+- **El modo pendiente de zsh no se puede pintar.** Al pulsar un operador (`c`, `d`, `y`) zsh
+  se queda leyendo la siguiente tecla **dentro del propio widget**: no dispara ningún gancho,
+  así que no hay dónde repintar. La tira se quedaba en NORMAL. Por eso los objetos de texto
+  van en la lista de NORMAL —donde sí se ven— y la referencia completa, en `claude-keys`.
 - **Encender el modo vim rompe las teclas de la capa 20 si no se repiten.** `bindkey -e` las
   ató a `main` cuando `main` era `emacs`; en cuanto `claude-40-keys.zsh` hace `bindkey -v`,
   `main` pasa a ser `viins` y todo aquello deja de existir en el mapa activo. Por eso la capa
@@ -561,10 +576,15 @@ Al pulsar un prefijo la banda cambia al submapa.
 |---|---|
 | `h j k l` | mueve el **foco** a la ventana que hay en esa dirección |
 | `H J K L` | manda la ventana activa a esa mitad de la pantalla |
-| `w` | submapa de ventana: maximizar, minimizar, centrar, cerrar, siempre encima |
-| `d` | submapa de escritorio: anterior, siguiente, ir al N, nuevo, cerrar |
-| `a` | abrir: terminal, explorador, navegador, Claude |
+| `w` | ventana: `k` maximizar, `j` minimizar, `c` centrar, `q` cerrar, `t` siempre encima |
+| `d` | escritorio: `h l` anterior/siguiente, `1-9` ir al N, `n` nuevo, `q` cerrar |
+| `a` | abrir: `t` terminal, `e` explorador, `b` navegador, `c` código |
 | `Esc` | en un submapa vuelve al raíz; en el raíz, sale |
+
+`q` cierra en los dos submapas, y `c` es siempre «centrar» o «código», nunca «cerrar»: una
+tecla que borra cosas no debería compartir letra con una que las coloca. La lista de `a` es
+**lo único que depende de tu máquina** — está en `palette.json` y, si un ejecutable no
+resuelve, la banda lo dice («no encuentro X») en vez de quedarse callada.
 
 El **icono de bandeja** cambia de gris a teal con el modo. Es lo único de la barra de tareas
 que reacciona al instante: el reloj no sirve para esto, porque pide su texto por HTTP cada

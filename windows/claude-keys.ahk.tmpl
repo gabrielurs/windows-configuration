@@ -131,8 +131,8 @@ ActWindow(key) {
     switch key {
         case "k": WinMaximize("ahk_id " hwnd)
         case "j": WinMinimize("ahk_id " hwnd)
-        case "y": CenterWindow(hwnd)
-        case "c": WinClose("ahk_id " hwnd)
+        case "c": CenterWindow(hwnd)
+        case "q": WinClose("ahk_id " hwnd)
         case "t": ToggleTopmost(hwnd)
         default:  return
     }
@@ -144,7 +144,7 @@ ActDesktop(key) {
         case "h": Send("^#{Left}")
         case "l": Send("^#{Right}")
         case "n": Send("^#d")
-        case "x": Send("^#{F4}")
+        case "q": Send("^#{F4}")
         default:
             if (key ~= "^[1-9]$")
                 GoToDesktop(Integer(key))
@@ -158,7 +158,11 @@ ActApps(key) {
         return
     cmd := APPS[key]
     LeaveMode()
-    try Run(cmd)
+    ; Un .cmd o un .bat los lanza cmd.exe, que abre una consola: sin "Hide"
+    ; parpadea una ventana negra antes de que salga la aplicación. A un .exe no
+    ; se le puede pasar, que lo escondería a él.
+    opts := (cmd ~= "i)\.(cmd|bat)$") ? "Hide" : ""
+    try Run(cmd, , opts)
     catch
         Flash("no encuentro " cmd)
 }

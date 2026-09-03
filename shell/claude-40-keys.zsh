@@ -140,11 +140,22 @@ _claude_keys_render() {
   out+="$line"
 
   local -a lines=( "${(f)out}" )
+
+  # El tope. En un terminal estrecho la lista entera se comía seis filas, y una
+  # ayuda que tapa un cuarto de la pantalla cada vez que pulsas Esc deja de
+  # ayudar. Lo que no cabe se resume en un « … » que remite a `claude-keys`.
+  local -i max=${CC_KEYS_MAXLINES:-3}
+  local cola=""
+  if (( max > 0 && $#lines > max )); then
+    lines=( "${lines[@]:0:$max}" )
+    cola="   %F{$CC_HEX_GHOST}…%f"
+  fi
+
   local blank="${(l:$pad:: :)}"
   _claude_keys_bar="%F{$role}${(r:$pad:: :)badge}%f${lines[1]}"
   local l
   for l in "${lines[@]:1}"; do _claude_keys_bar+=$'\n'"${blank}${l}"; done
-  _claude_keys_bar+=$'\n'
+  _claude_keys_bar+="${cola}"$'\n'
 }
 
 # ── ganchos de ZLE ────────────────────────────────────────────────────
@@ -304,10 +315,19 @@ fi
 # recientes atan sus widgets a emacs, vicmd Y viins, así que sobreviven al
 # cambio; las viejas solo a emacs, y entonces Ctrl+R se habría perdido sin decir
 # nada. Se vuelve a atar solo si el widget existe de verdad.
-(( ${+widgets[fzf-history-widget]} )) && {
-  bindkey -M viins '^r' fzf-history-widget
-  bindkey -M vicmd '^r' fzf-history-widget
-}
+#
+# Y en viins Y SOLO en viins. Atarlo también en `vicmd` fue un error: ahí `^r`
+# es `redo` —la pareja de `u`— y el chuletario anunciaba «deshacer / rehacer»
+# mientras la tecla abría el buscador. El auto-test no podía verlo, porque `^r`
+# SÍ estaba atado; solo que a otra cosa. En NORMAL se busca con `/`, que es lo
+# que dice la propia tira.
+(( ${+widgets[fzf-history-widget]} )) && bindkey -M viins '^r' fzf-history-widget
+
+# Y en NORMAL, `^r` se le QUITA a fzf para devolvérselo a `redo`, la pareja de
+# `u`. No basta con no atarlo aquí: fzf lo ata él mismo en vicmd (línea 115 de
+# su key-bindings.zsh), así que hay que recuperarlo a la fuerza. En NORMAL se
+# busca con `/`, que es lo que dice la tira.
+bindkey -M vicmd '^r' redo
 (( ${+widgets[fzf-file-widget]} ))    && bindkey -M viins '^t' fzf-file-widget
 (( ${+widgets[fzf-cd-widget]} ))      && bindkey -M viins '\ec' fzf-cd-widget
 

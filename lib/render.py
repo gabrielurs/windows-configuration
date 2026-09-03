@@ -213,6 +213,7 @@ def keymap_zsh(p: dict) -> str:
         f'typeset -g CC_KEYS_STATE="{statefile}"',
         f"typeset -g CC_KEYS_TIMEOUT='{int(sh.get('keyTimeout', 15))}'",
         f"typeset -g CC_KEYS_ESCAPE='{sh.get('escape', '')}'",
+        f"typeset -g CC_KEYS_MAXLINES='{int(sh.get('maxLines', 3))}'",
         f"typeset -g CC_KEYS_HOTKEY='{k['windows'].get('hotkeyLabel', '')}'",
     ]
     cur = sh.get("cursor", {})
