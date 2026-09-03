@@ -14,11 +14,13 @@ remoto  github.com:gabrielurs/windows-configuration  (ssh github.com-iesebre)
 | | |
 |---|---|
 | ida y vuelta | **7/7** testigos tras desinstalar y reinstalar de verdad |
+| auto-test | **58/58**, con el chuletario contrastado contra `bindkey` |
 | snapshot | 84 entradas — 14 ficheros, 60 valores, 10 claves completas |
 | mods de Windhawk | 10 configurados, 178 ajustes |
 | rama de git | servicio activo en `127.0.0.1:8756` |
 | buscador | Flow Launcher, tema `ClaudeCLI`, `Ctrl+Space` |
 | acento | `#4DD6C1` con `ColorPrevalence=0` |
+| atajos | modo vim en zsh y AutoHotkey v2 en `Alt+Space`, banda medida en pantalla |
 
 ## Hecho, por superficie
 
@@ -30,6 +32,7 @@ remoto  github.com:gabrielurs/windows-configuration  (ssh github.com-iesebre)
 | ventanas | borde teal en la activa, gris en las inactivas, sin pintar la barra de título |
 | Inicio y notificaciones | opacos — filtraban el fondo de pantalla |
 | buscador | flotante, centrado, con la paleta generada desde `palette.json` |
+| atajos | vim en la línea de comandos con objetos de texto y `surround`; `Alt+Space` abre un modo de ventanas con banda which-key sobre la barra e icono de bandeja que cambia con el modo |
 
 ## Lo que no se puede, y cómo se descartó
 
@@ -105,6 +108,40 @@ Quien lo usa ya lo tiene en memoria. Solo lo recarga `WM_DWMCOLORIZATIONCOLORCHA
 (0x0320). Probados y descartados `WM_SETTINGCHANGE` con `ImmersiveColorSet` y
 `UpdatePerUserSystemParameters`.
 
+### AutoHotkey: dos trampas que no dan error
+
+**`Trim()` recorta espacios y tabuladores, NO saltos de línea.** El interruptor de la banda lo
+escribe la shell con `print`, que deja un `\n`. El script leía «on\n», nunca era igual a «on»,
+y la banda no aparecía **nunca**: el modo funcionando y sin explicarse jamás, que es justo lo
+contrario de para lo que existe. Sin excepción, sin diálogo, sin nada. Hay que pasarle los
+caracteres a mano: `Trim(x, " \`t\`r\`n")`.
+
+**La autoejecución termina en la PRIMERA definición de atajo.** Todo lo que hay por debajo de
+`!Space::` son funciones que alguien tiene que llamar. Un `OnExit()` suelto al final del fichero
+—que es donde lo puse— no se registra nunca y no se queja. El auto-test lo comprueba ahora
+por posición.
+
+Y la herramienta que hace posible depurar esto desde WSL: **`/ErrorStdOut`**. Sin él, un error
+abre un diálogo en el escritorio de Windows y desde aquí solo se ve un proceso que no responde.
+
+```bash
+AutoHotkey64.exe /ErrorStdOut script.ahk     # el error sale por stdout
+```
+
+Ojo al leerlo: escribe en la página de códigos del sistema, no en UTF-8. Con `text=True` en
+Python el propio decodeo revienta y **tapa el error que querías ver**.
+
+### El modo visual de zsh no cambia `$KEYMAP`
+
+Sigue diciendo `vicmd` y usa el keymap `visual` como una capa por encima; `zle-keymap-select`
+ni se entera. Lo que hay que mirar es **`$REGION_ACTIVE`**, y en `zle-line-pre-redraw`, que es
+el único gancho que corre al activarse la región. Con `reset-prompt` ahí dentro hay que
+comparar el modo anterior o se llama a sí mismo sin parar.
+
+Lo mismo de fondo: `visual` y `viopp` son capas finas sobre `vicmd`. Una tecla que no esté en
+ellas se resuelve abajo, y por eso `bindkey -M viopp w` dice «undefined-key» mientras `dw`
+funciona perfectamente. El auto-test tiene que preguntar a los dos mapas.
+
 ### El id de un mod no sirve para buscarlo
 
 Windhawk busca por **nombre**. `taskbar-start-button-position` no devuelve nada; el mod se
@@ -140,10 +177,33 @@ primero no está en `icons.APPS` y el instalador lo dice y sigue:
 inventarse glifo y rol, que es justo lo que este repo lleva evitando. Si algún día se
 quiere, la decisión es de diseño y la línea va en `lib/icons.py`, en `APPS`.
 
+### Los atajos de ventanas: probados por sonda, no a mano
+
+La banda, su posición y sus colores se midieron **en captura de pantalla**: `x=530 y=986
+w=860 h=34` sobre un área de trabajo de 1920×1030, o sea centrada y pegada justo encima de la
+barra; fondo `#07090A` y borde `#1A2026`, los de la paleta. El icono de bandeja y el submapa
+`w` también se verificaron por sonda.
+
+Lo que **no** se ha probado con las manos: `h j k l` moviendo el foco entre ventanas reales,
+`H J K L` repartiendo mitades, y el salto a un escritorio virtual concreto. La lógica está
+escrita y el script carga limpio, pero eso no es lo mismo que haberlo usado. **Pruébalo un
+rato antes de fiarte.**
+
+El salto al escritorio N lee el registro (`VirtualDesktops\CurrentVirtualDesktop` contra
+`VirtualDesktopIDs`, 16 bytes por GUID) porque no hay API pública: la `IVirtualDesktopManager`
+que la tiene cambia de IID en cada build de Windows. Devolvió 4 correctamente en esta máquina.
+Si algún día devuelve 0, la banda lo dice y no hace nada — anterior y siguiente siguen yendo,
+que esos son atajos del sistema.
+
 ### Tests: los hay para el shell, no para Windows
 
-`./install.sh --self-test` comprueba 33 invariantes del shell y del render, bajo un pty de
+`./install.sh --self-test` comprueba 58 invariantes del shell y del render, bajo un pty de
 verdad. Sale con código 1 si algo falla.
+
+De los atajos cubre lo que se puede cubrir desde aquí: que cada tecla anunciada en el
+chuletario está atada de verdad —se le pregunta a `bindkey`—, que la tira aparece y calla en
+los modos que toca, y que AutoHotkey **carga** el script generado sin errores. Lo que no cubre
+es que los atajos de ventana hagan lo correcto; para eso hacen falta ventanas.
 
 Lo que **sigue** sin cobertura es todo el lado Windows: los selectores XAML de Windhawk, la
 barra, el Explorador. Eso se verificó midiendo píxeles a mano sobre capturas y no viaja al
@@ -182,6 +242,11 @@ python3 lib/apply_windows.py --skip wt,vscode,ps,accent,taskbar,menu,icons,launc
 El snapshot vive en `~/.local/share/claude-terminal-theme/`, **fuera del repo y a
 propósito**: cada máquina guarda su propio «antes», y llevarte el de otra es justo lo que
 rompe la marcha atrás.
+
+AutoHotkey v2 se instala con winget y el instalador lo ofrece; el script se copia a
+`%LOCALAPPDATA%\claude-terminal-theme\` junto a sus dos iconos y el fichero del interruptor,
+y arranca solo desde la clave `Run`. `--uninstall` lo para antes de borrar nada, por lo mismo
+que con Flow y con explorer.
 
 Los mods de Windhawk son el único paso manual — Windhawk los compila en local desde su
 interfaz y no expone CLI. El instalador detecta cuáles faltan y los lista con su nombre

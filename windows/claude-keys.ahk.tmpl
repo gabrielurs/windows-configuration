@@ -1,0 +1,469 @@
+#Requires AutoHotkey v2.0
+#SingleInstance Force
+; claude-keys.ahk — atajos de vim para las ventanas de Windows, con el
+; chuletario delante mientras se aprenden.
+;
+; PLANTILLA. Los huecos entre arrobas los rellena lib/keys.py desde palette.json,
+; que es donde viven los colores, la geometría y el chuletario. Editar la copia
+; instalada no sirve de nada: la siguiente pasada de ./install.sh la reescribe.
+;
+; La idea es la misma que en la shell: se entra en un modo, aparece una banda
+; sobre la barra de tareas con lo que puedes hacer AHORA, y al pulsar un prefijo
+; la banda cambia al submapa. Which-key. Cuando ya no haga falta, `claude-keys
+; off` en la shell apaga la banda aquí también — el modo sigue funcionando, solo
+; deja de explicarse.
+
+; ── lo que viene de palette.json ──────────────────────────────────────
+HOTKEY_LABEL := "@@HOTKEY_LABEL@@"
+PASSTHROUGH  := @@PASSTHROUGH@@
+OSD_HEIGHT   := @@OSD_HEIGHT@@
+OSD_RADIUS   := @@OSD_RADIUS@@
+OSD_MARGIN   := @@OSD_MARGIN@@
+OSD_PADDING  := @@OSD_PADDING@@
+OSD_FONTSIZE := @@OSD_FONTSIZE@@
+FONT         := "@@FONT@@"
+BG           := "@@BG@@"
+BORDER       := "@@BORDER@@"
+KEYCOLOR     := "@@KEYCOLOR@@"
+DESCCOLOR    := "@@DESCCOLOR@@"
+HINTFILE     := EnvGet("LOCALAPPDATA") "\claude-terminal-theme\hints"
+ICON_IDLE    := A_ScriptDir "\keys-idle.ico"
+ICON_ACTIVE  := A_ScriptDir "\keys-active.ico"
+
+MODES := Map()
+@@MODES@@
+
+APPS := Map()
+@@APPS@@
+
+; ── estado ────────────────────────────────────────────────────────────
+MODE     := ""          ; "" = fuera del modo. Si no, el nombre de un MODES.
+HINTS    := true        ; ¿se dibuja la banda? Lo manda el fichero de la shell.
+OSDGui   := 0
+CharW    := 8
+CharH    := 16
+FlashOff := 0
+
+InitTray()
+ReadHints()
+SetTimer(ReadHints, 1000)
+InitHotkeys()
+; Si el script se va, que no deje una banda flotando por encima de todo.
+;
+; Va AQUÍ y no al final del fichero, que es donde estaba. La sección de
+; autoejecución de AutoHotkey termina en la PRIMERA definición de atajo, así que
+; todo lo que hay por debajo de `@@HOTKEY@@::` son funciones que alguien tiene
+; que llamar: un OnExit() suelto ahí abajo no se registra nunca y no se queja.
+OnExit((*) => HideOSD())
+
+; ── la tecla que abre el modo ─────────────────────────────────────────
+; Pulsación corta: entra o sale del modo. Mantenida más de PASSTHROUGH ms:
+; devuelve el menú de ventana de Windows, que es lo que esta tecla hacía antes
+; de que llegáramos nosotros. Se manda por WM_SYSCOMMAND y no con Send("!{Space}")
+; porque eso volvería a disparar este mismo atajo.
+@@HOTKEY@@:: {
+    global MODE, PASSTHROUGH
+    if KeyWait("Space", "T" (PASSTHROUGH / 1000)) {
+        if (MODE = "")
+            EnterMode("normal")
+        else
+            LeaveMode()
+        return
+    }
+    KeyWait("Space")
+    try PostMessage(0x0112, 0xF100, 32, , "A")     ; WM_SYSCOMMAND, SC_KEYMENU
+}
+
+; ── el teclado del modo ───────────────────────────────────────────────
+; Se registran TODAS las letras y cifras, no solo las que hacen algo. Sin el
+; cajón de sastre, una tecla suelta dentro del modo se colaría en la aplicación
+; que tenga el foco: entras en modo para mover una ventana, te equivocas de
+; tecla y acabas escribiendo en el documento de debajo.
+InitHotkeys() {
+    HotIf (*) => MODE != ""
+    for k in StrSplit("abcdefghijklmnopqrstuvwxyz0123456789")
+        Hotkey(k, OnModeKey)
+    for k in StrSplit("hjkl")
+        Hotkey("+" k, OnModeKey)
+    Hotkey("Escape", OnModeKey)
+    HotIf()
+}
+
+OnModeKey(name) {
+    key := name
+    if (SubStr(key, 1, 1) = "+")
+        key := StrUpper(SubStr(key, 2))
+    Act(key)
+}
+
+Act(key) {
+    global MODE
+    if (key = "Escape") {
+        ; Esc en un submapa vuelve al raíz; en el raíz, sale. Como en vim.
+        if (MODE = "normal")
+            LeaveMode()
+        else
+            EnterMode("normal")
+        return
+    }
+    switch MODE {
+        case "normal":  ActNormal(key)
+        case "window":  ActWindow(key)
+        case "desktop": ActDesktop(key)
+        case "apps":    ActApps(key)
+    }
+}
+
+ActNormal(key) {
+    switch key {
+        case "h", "j", "k", "l": FocusDir(key)
+        case "H", "J", "K", "L": SnapDir(StrLower(key))
+        case "w": EnterMode("window")
+        case "d": EnterMode("desktop")
+        case "a": EnterMode("apps")
+    }
+}
+
+ActWindow(key) {
+    hwnd := ActiveWindow()
+    if !hwnd
+        return Flash("no hay ventana activa")
+    switch key {
+        case "k": WinMaximize("ahk_id " hwnd)
+        case "j": WinMinimize("ahk_id " hwnd)
+        case "y": CenterWindow(hwnd)
+        case "c": WinClose("ahk_id " hwnd)
+        case "t": ToggleTopmost(hwnd)
+        default:  return
+    }
+    EnterMode("normal")        ; hecho lo suyo, la banda vuelve al mapa raíz
+}
+
+ActDesktop(key) {
+    switch key {
+        case "h": Send("^#{Left}")
+        case "l": Send("^#{Right}")
+        case "n": Send("^#d")
+        case "x": Send("^#{F4}")
+        default:
+            if (key ~= "^[1-9]$")
+                GoToDesktop(Integer(key))
+    }
+    ; Se queda en el submapa: encadenar h l h l es justo lo que se quiere aquí.
+}
+
+ActApps(key) {
+    global APPS
+    if !APPS.Has(key)
+        return
+    cmd := APPS[key]
+    LeaveMode()
+    try Run(cmd)
+    catch
+        Flash("no encuentro " cmd)
+}
+
+; ── modos y banda ─────────────────────────────────────────────────────
+EnterMode(name) {
+    global MODE := name
+    UpdateTray()
+    ShowOSD(name)
+}
+
+LeaveMode() {
+    global MODE := ""
+    UpdateTray()
+    HideOSD()
+}
+
+InitTray() {
+    A_TrayMenu.Delete()
+    A_TrayMenu.Add("Atajos (" HOTKEY_LABEL ")", (*) => EnterMode("normal"))
+    A_TrayMenu.Add("Salir", (*) => ExitApp())
+    UpdateTray()
+}
+
+UpdateTray() {
+    global MODE
+    icon := (MODE = "") ? ICON_IDLE : ICON_ACTIVE
+    if FileExist(icon)
+        try TraySetIcon(icon)
+    A_IconTip := (MODE = "")
+        ? "claude-keys — " HOTKEY_LABEL
+        : "claude-keys — " MODES[MODE].badge
+}
+
+; El fichero lo escribe `claude-keys on|off` desde la shell. Un solo interruptor
+; para las dos superficies, que es lo que se pidió; sondearlo cada segundo es
+; más barato que montar un canal entre WSL y Windows para un booleano.
+ReadHints(*) {
+    global HINTS, MODE
+    want := true
+    ; El " `t`r`n" del Trim NO sobra. El Trim de AutoHotkey recorta por defecto
+    ; SOLO espacios y tabuladores, y la shell escribe este fichero con `print`,
+    ; que deja un salto de línea al final. Sin los caracteres explícitos, el
+    ; contenido leído es «on\n», nunca es igual a «on», HINTS se queda en falso
+    ; y la banda no aparece JAMÁS — el modo funcionando y sin explicarse nunca,
+    ; que es exactamente lo contrario de para lo que existe. Y sin dar un error.
+    try want := (Trim(FileRead(HINTFILE), " `t`r`n") = "on")
+    if (want = HINTS)
+        return
+    HINTS := want
+    if (MODE != "")
+        ShowOSD(MODE)          ; se nota al momento, sin salir y volver a entrar
+}
+
+HideOSD() {
+    global OSDGui
+    if OSDGui {
+        try OSDGui.Destroy()
+        OSDGui := 0
+    }
+}
+
+; Se reconstruye entera en cada cambio de modo en vez de reutilizar controles:
+; los cambios de modo son cuatro por segundo como mucho, y un Gui nuevo no puede
+; quedarse con restos del anterior.
+ShowOSD(name) {
+    global OSDGui, MODES, HINTS, BG, BORDER, KEYCOLOR, DESCCOLOR
+    HideOSD()
+    if (!HINTS || !MODES.Has(name))
+        return
+    m := MODES[name]
+
+    OSDGui := Gui("-Caption +AlwaysOnTop +ToolWindow +E0x08000020 +Disabled", "ClaudeKeysOSD")
+    ; +E0x08000020 = WS_EX_NOACTIVATE | WS_EX_TRANSPARENT. Lo primero es lo que
+    ; de verdad importa: si la banda robara el foco, «maximizar la ventana
+    ; activa» maximizaría la propia banda.
+    OSDGui.BackColor := BORDER          ; el borde es el fondo; encima va el panel
+    OSDGui.SetFont("s" OSD_FONTSIZE, FONT)
+
+    MeasureChar()
+    gap := 3                            ; espacios entre un atajo y el siguiente
+    text := m.badge
+    for pair in m.hints
+        text .= StrRepeat(" ", gap) pair[1] " " pair[2]
+    w := StrLen(text) * CharW + OSD_PADDING * 2
+    h := OSD_HEIGHT
+
+    ; El panel interior. Cada etiqueta lleva DESPUÉS su propio Background con el
+    ; mismo color, así que las costuras entre controles no se ven y lo único que
+    ; asoma del BackColor del Gui es el marco de un píxel.
+    OSDGui.Add("Text", "x1 y1 w" (w - 2) " h" (h - 2) " Background" BG)
+
+    ty := (h - CharH) // 2
+    x  := OSD_PADDING
+    x := AddLabel(m.badge, m.role, x, ty)
+    for pair in m.hints {
+        x += CharW * gap
+        x := AddLabel(pair[1], KEYCOLOR, x, ty)
+        x += CharW
+        x := AddLabel(pair[2], DESCCOLOR, x, ty)
+    }
+
+    ; Anclada sobre la barra de tareas: el borde inferior del área de trabajo ES
+    ; el borde superior de la barra, así que no hay que saber cuánto mide.
+    MonitorGetWorkArea(MonitorGetPrimary(), &wl, &wt, &wr, &wb)
+    gx := wl + ((wr - wl) - w) // 2
+    gy := wb - h - OSD_MARGIN
+    OSDGui.Show("NA x" gx " y" gy " w" w " h" h)
+    RoundCorners(OSDGui.Hwnd, w, h, OSD_RADIUS)
+}
+
+AddLabel(text, color, x, y) {
+    global OSDGui, BG, CharW
+    w := StrLen(text) * CharW
+    OSDGui.Add("Text", "x" x " y" y " w" w " h" CharH " c" color " Background" BG, text)
+    return x + w
+}
+
+; La fuente es monoespaciada (viene de clock.fontFamily en palette.json), así
+; que basta medir un carácter una vez y toda la maquetación es aritmética.
+MeasureChar() {
+    global OSDGui, CharW, CharH
+    probe := OSDGui.Add("Text", "x0 y0", StrRepeat("M", 20))
+    probe.GetPos(, , &pw, &ph)
+    CharW := Max(1, Round(pw / 20))
+    CharH := ph
+    probe.Visible := false
+}
+
+RoundCorners(hwnd, w, h, r) {
+    rgn := DllCall("Gdi32\CreateRoundRectRgn", "int", 0, "int", 0,
+                   "int", w + 1, "int", h + 1, "int", r * 2, "int", r * 2, "ptr")
+    DllCall("User32\SetWindowRgn", "ptr", hwnd, "ptr", rgn, "int", 1)
+}
+
+Flash(msg) {
+    global OSDGui, MODE, HINTS, BG, BORDER, DESCCOLOR
+    if !HINTS
+        return
+    HideOSD()
+    OSDGui := Gui("-Caption +AlwaysOnTop +ToolWindow +E0x08000020 +Disabled", "ClaudeKeysOSD")
+    OSDGui.BackColor := BORDER
+    OSDGui.SetFont("s" OSD_FONTSIZE, FONT)
+    MeasureChar()
+    w := StrLen(msg) * CharW + OSD_PADDING * 2
+    h := OSD_HEIGHT
+    OSDGui.Add("Text", "x1 y1 w" (w - 2) " h" (h - 2) " Background" BG)
+    OSDGui.Add("Text", "x" OSD_PADDING " y" ((h - CharH) // 2) " w" (w - OSD_PADDING * 2)
+               " h" CharH " c" DESCCOLOR " Background" BG, msg)
+    MonitorGetWorkArea(MonitorGetPrimary(), &wl, &wt, &wr, &wb)
+    OSDGui.Show("NA x" (wl + ((wr - wl) - w) // 2) " y" (wb - h - OSD_MARGIN) " w" w " h" h)
+    RoundCorners(OSDGui.Hwnd, w, h, OSD_RADIUS)
+    SetTimer(RestoreOSD, -1200)
+}
+
+RestoreOSD() {
+    global MODE
+    if (MODE = "")
+        HideOSD()
+    else
+        ShowOSD(MODE)
+}
+
+StrRepeat(s, n) {
+    out := ""
+    loop n
+        out .= s
+    return out
+}
+
+; ── ventanas ──────────────────────────────────────────────────────────
+ActiveWindow() {
+    try return WinExist("A")
+    return 0
+}
+
+; Una ventana «de verdad»: visible, con título, no una herramienta flotante, no
+; minimizada y —la que importa— no *cloaked*. Windows deja las ventanas de los
+; OTROS escritorios virtuales existiendo y visibles según WS_VISIBLE; lo único
+; que las distingue es el atributo DWMWA_CLOAKED. Sin esta comprobación, mover
+; el foco «a la derecha» te saca del escritorio en el que estás.
+IsManageable(id) {
+    try {
+        if (WinGetTitle("ahk_id " id) = "")
+            return false
+        if !(WinGetStyle("ahk_id " id) & 0x10000000)        ; WS_VISIBLE
+            return false
+        if (WinGetExStyle("ahk_id " id) & 0x00000080)       ; WS_EX_TOOLWINDOW
+            return false
+        if (WinGetMinMax("ahk_id " id) = -1)                ; minimizada
+            return false
+    } catch
+        return false
+    cloaked := 0
+    try DllCall("Dwmapi\DwmGetWindowAttribute", "ptr", id, "int", 14,
+                "int*", &cloaked, "int", 4)
+    return !cloaked
+}
+
+; Foco espacial de verdad, no un ciclo por orden Z: se elige la ventana cuyo
+; centro cae en la dirección pedida y está más cerca. Lo perpendicular pesa el
+; doble para que lo que tienes JUSTO al lado gane a lo que está lejos en
+; diagonal — sin eso, «a la derecha» acaba saltando a una esquina.
+FocusDir(dir) {
+    cur := ActiveWindow()
+    if !cur
+        return
+    WinGetPos(&cx, &cy, &cw, &ch, "ahk_id " cur)
+    ox := cx + cw // 2, oy := cy + ch // 2
+
+    best := 0, bestD := 0
+    for id in WinGetList() {
+        if (id = cur || !IsManageable(id))
+            continue
+        WinGetPos(&x, &y, &w, &h, "ahk_id " id)
+        dx := (x + w // 2) - ox, dy := (y + h // 2) - oy
+        if ((dir = "l" && dx <= 0) || (dir = "h" && dx >= 0)
+            || (dir = "j" && dy <= 0) || (dir = "k" && dy >= 0))
+            continue
+        d := (dir = "h" || dir = "l") ? Abs(dx) + Abs(dy) * 2 : Abs(dy) + Abs(dx) * 2
+        if (!best || d < bestD) {
+            best := id, bestD := d
+        }
+    }
+    if best
+        WinActivate("ahk_id " best)
+    else
+        Flash("no hay ventana hacia ahí")
+}
+
+SnapDir(dir) {
+    hwnd := ActiveWindow()
+    if !hwnd
+        return
+    MonitorGetWorkArea(MonitorFromWindow(hwnd), &wl, &wt, &wr, &wb)
+    ww := wr - wl, wh := wb - wt
+    WinRestore("ahk_id " hwnd)          ; maximizada, WinMove no la mueve
+    switch dir {
+        case "h": WinMove(wl, wt, ww // 2, wh, "ahk_id " hwnd)
+        case "l": WinMove(wl + ww // 2, wt, ww // 2, wh, "ahk_id " hwnd)
+        case "k": WinMove(wl, wt, ww, wh // 2, "ahk_id " hwnd)
+        case "j": WinMove(wl, wt + wh // 2, ww, wh // 2, "ahk_id " hwnd)
+    }
+}
+
+CenterWindow(hwnd) {
+    MonitorGetWorkArea(MonitorFromWindow(hwnd), &wl, &wt, &wr, &wb)
+    ww := (wr - wl) * 7 // 10, wh := (wb - wt) * 8 // 10
+    WinRestore("ahk_id " hwnd)
+    WinMove(wl + ((wr - wl) - ww) // 2, wt + ((wb - wt) - wh) // 2, ww, wh, "ahk_id " hwnd)
+}
+
+ToggleTopmost(hwnd) {
+    if (WinGetExStyle("ahk_id " hwnd) & 0x8) {      ; WS_EX_TOPMOST
+        WinSetAlwaysOnTop(0, "ahk_id " hwnd)
+        Flash("siempre encima: no")
+    } else {
+        WinSetAlwaysOnTop(1, "ahk_id " hwnd)
+        Flash("siempre encima: sí")
+    }
+}
+
+MonitorFromWindow(hwnd) {
+    WinGetPos(&x, &y, &w, &h, "ahk_id " hwnd)
+    cx := x + w // 2, cy := y + h // 2
+    loop MonitorGetCount() {
+        MonitorGet(A_Index, &l, &t, &r, &b)
+        if (cx >= l && cx < r && cy >= t && cy < b)
+            return A_Index
+    }
+    return MonitorGetPrimary()
+}
+
+; ── escritorios virtuales ─────────────────────────────────────────────
+; Anterior y siguiente son atajos del sistema y no fallan nunca. Saltar al
+; escritorio N sí necesita saber en cuál estás, y para eso NO hay API pública:
+; la IVirtualDesktopManager que la tiene cambia de IID en cada build de Windows
+; y un COM que se rompe con cada actualización es peor que no tener la función.
+; Se lee del registro, que es estable, y si no se puede leer se dice y ya.
+DesktopKeys() {
+    return ["HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VirtualDesktops",
+            "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\SessionInfo\1\VirtualDesktops"]
+}
+
+CurrentDesktopIndex() {
+    for key in DesktopKeys() {
+        cur := "", all := ""
+        try cur := RegRead(key, "CurrentVirtualDesktop")
+        try all := RegRead(DesktopKeys()[1], "VirtualDesktopIDs")
+        if (cur = "" || all = "")
+            continue
+        pos := InStr(all, cur)
+        if pos
+            return (pos - 1) // 32 + 1          ; un GUID son 16 bytes = 32 hex
+    }
+    return 0
+}
+
+GoToDesktop(n) {
+    cur := CurrentDesktopIndex()
+    if !cur
+        return Flash("no puedo leer en qué escritorio estás")
+    if (n = cur)
+        return
+    key := (n > cur) ? "{Right}" : "{Left}"
+    loop Abs(n - cur)
+        Send("^#" key)
+}

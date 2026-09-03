@@ -62,6 +62,12 @@ _flow_install() {
     --accept-package-agreements --accept-source-agreements --silent 2>&1 | tr -d '\r' | tail -3
 }
 
+_ahk_install() {
+  step "instalando AutoHotkey v2 con winget (los atajos de ventanas)"
+  winget.exe install --id AutoHotkey.AutoHotkey --source winget \
+    --accept-package-agreements --accept-source-agreements --silent 2>&1 | tr -d '\r' | tail -3
+}
+
 _chsh_zsh() {
   step "poniendo zsh como shell por defecto"
   chsh -s "$(command -v zsh)" || warn "chsh falló; hazlo a mano: chsh -s $(command -v zsh)"
@@ -141,6 +147,15 @@ deps_scan() {
     if [[ ! -d "$(_win_home)/AppData/Local/FlowLauncher" ]] && command -v winget.exe >/dev/null; then
       DEPS_MISSING+=("Flow Launcher — el buscador flotante de Ctrl+Espacio")
       DEPS_ACTIONS+=(_flow_install)
+    fi
+    # AutoHotkey v2. Ojo con el glob: la v1 se instala en el directorio de al
+    # lado y su ejecutable se llama igual, así que se busca el subdirectorio
+    # «v2» explícitamente. El modo de la shell no depende de esto.
+    if ! compgen -G "/mnt/c/Program Files/AutoHotkey/v2/AutoHotkey*.exe" >/dev/null \
+       && ! compgen -G "$(_win_home)/AppData/Local/Programs/AutoHotkey/v2/AutoHotkey*.exe" >/dev/null \
+       && command -v winget.exe >/dev/null; then
+      DEPS_MISSING+=("AutoHotkey v2 — los atajos de ventanas de Alt+Espacio")
+      DEPS_ACTIONS+=(_ahk_install)
     fi
   fi
 }

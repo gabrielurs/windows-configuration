@@ -55,6 +55,31 @@ print "git_pager=${GIT_PAGER%% *}"
 print "nerd_glyphs=$CC_NERD_GLYPHS"
 print "eza_colors=${EZA_COLORS:+set}"
 print "z_is=$(whence -w z 2>/dev/null)"
+# ── modo vim y la tira de atajos ──
+print "vi_main=$(bindkey -lL main)"
+print "keytimeout=$KEYTIMEOUT"
+print "keys_hotkey=$CC_KEYS_HOTKEY"
+print "has_render=${+functions[_claude_keys_render]}"
+print "has_command=${+functions[claude-keys]}"
+print "prompt_has_bar=${${PROMPT}[(I)*_claude_keys_bar*]}"
+print "pre_redraw=${widgets[zle-line-pre-redraw]}"
+for _m in normal visual viopp insert; do
+  _claude_keys_mode=$_m; CC_KEYS_ON=1; _claude_keys_render
+  print "bar_${_m}_len=${#_claude_keys_bar}"
+done
+CC_KEYS_ON=0; _claude_keys_mode=normal; _claude_keys_render
+print "bar_off_len=${#_claude_keys_bar}"
+# Cada tecla que el chuletario ANUNCIA, preguntada a zsh. Es lo que impide que
+# palette.json y las ataduras deriven en silencio.
+print "BINDINGS_BEGIN"
+for _spec in "${CC_SELFTEST_TOKENS[@]}"; do
+  _km=${_spec%%|*}; _rest=${_spec#*|}; _mode=${_rest%%|*}; _tok=${_rest#*|}
+  [[ $_tok == "<ESC>" ]] && _tok=$'\e'
+  _out=$(bindkey -M $_km -- "$_tok" 2>&1)
+  _first=$(bindkey -M $_km -- "${_tok[1]}" 2>&1)
+  print -r -- "BIND|$_km|$_mode|$_tok|${_out##* }|${_first##* }"
+done
+print "BINDINGS_END"
 # Sin tubería y en un directorio de juguete, a propósito. Con `ls | head` el
 # --icons=auto se apaga solo por no haber terminal al otro lado, y entonces esta
 # comprobación no puede fallar NUNCA: era un falso negativo. Se descubrió
@@ -73,6 +98,34 @@ print "LS_CONTROL_BEGIN"
 print "LS_CONTROL_END"
 rm -rf $_cct
 """
+
+
+# vicmd, viins, visual y viopp NO son cuatro mapas independientes: `visual` y
+# `viopp` son capas finas encima de `vicmd`, y una tecla que no esté en ellas se
+# resuelve allí. Por eso `w` en operador-pendiente sale «undefined-key» y aun
+# así `dw` funciona: hay que preguntar también al mapa de abajo o el test
+# suspende teclas que sí están.
+KEYMAP_OF = {"normal": "vicmd", "insert": "viins", "visual": "visual", "viopp": "viopp"}
+FALLBACK_OF = {"visual": "vicmd", "viopp": "vicmd"}
+
+
+def announced_tokens(pal: dict) -> list[tuple[str, str, str]]:
+    """(modo, keymap, tecla) por cada atajo que el chuletario enseña."""
+    out = []
+    for mode, m in pal["keys"]["shell"]["modes"].items():
+        for keys, _desc in m["hints"]:
+            for tok in keys.split():
+                out.append((mode, KEYMAP_OF[mode], "<ESC>" if tok == "Esc" else tok))
+    return out
+
+
+def tokens_prelude(pal: dict) -> str:
+    """El array que consume la sonda. Se inyecta delante para que PROBE no
+    tenga que saber nada de palette.json."""
+    rows = []
+    for mode, km, tok in announced_tokens(pal):
+        rows.append("  '" + f"{km}|{mode}|{tok}".replace("'", "'\\''") + "'")
+    return "typeset -a CC_SELFTEST_TOKENS=(\n" + "\n".join(rows) + "\n)\n"
 
 
 def zsh_under_pty(script: str, timeout: int = 60) -> tuple[str, str]:
@@ -113,14 +166,28 @@ def zsh_under_pty(script: str, timeout: int = 60) -> tuple[str, str]:
     return b"".join(chunks).decode("utf-8", "replace"), ""
 
 
-def parse(out: str) -> tuple[dict[str, str], str]:
-    """Saca los pares clave=valor y el bloque de `ls`.
+def clean_pty(out: str) -> str:
+    """Bajo pty el prompt mete secuencias de escape y títulos de ventana (OSC)
+    en medio de la salida. Esto las quita."""
+    txt = re.sub(r"\x1b][0-9];[^\x07\x1b]*(\x07|\x1b\\)", "", out)
+    return re.sub(r"\x1b\[[0-9;?]*[ -/]*[A-Za-z@]", "", txt).replace("\r", "")
 
-    Hay que limpiar antes: bajo pty el prompt mete secuencias de escape y
-    títulos de ventana (OSC) en medio de la salida.
-    """
-    clean = re.sub(r"\x1b][0-9];[^\x07\x1b]*(\x07|\x1b\\)", "", out)
-    clean = re.sub(r"\x1b\[[0-9;?]*[A-Za-z]", "", clean).replace("\r", "")
+
+def bind_rows(out: str) -> list[tuple[str, str, str, str, str]]:
+    """(keymap, modo, tecla, widget de la secuencia, widget del primer carácter)."""
+    rows = []
+    for line in clean_pty(out).split("\n"):
+        if not line.startswith("BIND|"):
+            continue
+        parts = line.rstrip().split("|")
+        if len(parts) == 6:
+            rows.append((parts[1], parts[2], parts[3], parts[4], parts[5]))
+    return rows
+
+
+def parse(out: str) -> tuple[dict[str, str], str]:
+    """Saca los pares clave=valor y el bloque de `ls`."""
+    clean = clean_pty(out)
     facts: dict[str, str] = {}
     for line in clean.split("\n"):
         m = re.match(r"^([a-z][a-z0-9_]*)=(.*)$", line)
@@ -153,16 +220,16 @@ class Report:
         print(f"  {label:<38} {GREY}—  {why}{OFF}")
 
 
-def check_shell(r: Report, pal: dict) -> None:
+def check_shell(r: Report, pal: dict) -> str:
     r.section("shell (zsh bajo pty)")
-    out, err = zsh_under_pty(PROBE)
+    out, err = zsh_under_pty(tokens_prelude(pal) + PROBE)
     if err:
         r.check("la sonda arranca", False, err)
-        return
+        return ""
     f, (ls_block, ls_control) = parse(out)
     if not f:
         r.check("la sonda arranca", False, "no devolvió ningún hecho")
-        return
+        return ""
 
     r.check("historial de 100k dentro y fuera",
             f.get("histsize") == "100000" and f.get("savehist") == "100000",
@@ -234,6 +301,218 @@ def check_shell(r: Report, pal: dict) -> None:
                         not pua, f"{len(pua)} codepoints en la zona de uso privado")
     else:
         r.skip("iconos de eza", "eza no instalado")
+    return out
+
+
+def check_keys(r: Report, pal: dict, out: str) -> None:
+    """El modo vim y —lo que de verdad importa— que el chuletario no mienta."""
+    r.section("atajos (modo vim y chuletario)")
+    f, _ = parse(out)
+    if not f:
+        r.check("la sonda devolvió hechos", False, "sin salida")
+        return
+
+    r.check("el keymap activo es vi",
+            "viins" in f.get("vi_main", ""), f.get("vi_main", "?"))
+    r.check(f"KEYTIMEOUT = {pal['keys']['shell']['keyTimeout']} (Esc responde)",
+            f.get("keytimeout") == str(pal["keys"]["shell"]["keyTimeout"]),
+            f.get("keytimeout", "?"))
+    r.check("el PROMPT reserva sitio a la tira",
+            f.get("prompt_has_bar", "0") != "0",
+            "el tema no referencia _claude_keys_bar")
+    r.check("`claude-keys` existe", f.get("has_command") == "1")
+    r.check("la tira tiene quien la pinte", f.get("has_render") == "1")
+    r.check("la shell conoce la tecla de Windows",
+            f.get("keys_hotkey") == pal["keys"]["windows"]["hotkeyLabel"],
+            f.get("keys_hotkey", "?"))
+
+    # Encadenar y no PISAR: oh-my-zsh carga zsh-syntax-highlighting antes que
+    # esta capa y los dos quieren el mismo gancho. `azhw` es el repartidor de
+    # add-zle-hook-widget; si aquí sale otra cosa, alguien se ha comido al otro.
+    r.check("los ganchos de ZLE se encadenan",
+            "azhw" in f.get("pre_redraw", ""), f.get("pre_redraw", "?"))
+
+    # La tira: llena en los modos de `showIn`, vacía en el resto y con el
+    # interruptor apagado. Es la diferencia entre which-key y una línea fija.
+    for mode in pal["keys"]["shell"]["showIn"]:
+        r.check(f"la tira se pinta en {mode}",
+                int(f.get(f"bar_{mode}_len") or 0) > 40,
+                f"{f.get(f'bar_{mode}_len')} caracteres")
+    off = [m for m in ("normal", "insert", "visual", "viopp")
+           if m not in pal["keys"]["shell"]["showIn"]]
+    for mode in off:
+        r.check(f"la tira calla en {mode}",
+                int(f.get(f"bar_{mode}_len") or 0) == 0,
+                f"{f.get(f'bar_{mode}_len')} caracteres")
+    r.check("con el interruptor en off no hay tira",
+            int(f.get("bar_off_len") or 0) == 0, f.get("bar_off_len", "?"))
+
+    # ── el chuletario contra bindkey ──
+    rows = bind_rows(out)
+    esperadas = len(announced_tokens(pal))
+    r.check("la sonda devuelve las ataduras", len(rows) == esperadas,
+            f"{len(rows)} de {esperadas} filas")
+    if not rows:
+        # Sin filas, la comprobación de abajo pasaría por vacuidad y cantaría
+        # victoria sobre nada. Se dice que no se pudo medir, que es la verdad.
+        r.skip("cada atajo anunciado está atado", "la sonda no devolvió ataduras")
+        return
+    huerfanas = []
+    for km, mode, tok, seq, first in rows:
+        # El respaldo «mira el primer carácter» sirve para ciw, dd o ci", donde
+        # la primera tecla es el operador y el resto lo lee zsh después. Para un
+        # ^r NO sirve: el primer carácter es el acento circunflejo, que en vicmd
+        # es vi-first-non-blank, así que CUALQUIER atajo de control pasaba el
+        # test por la puerta de atrás. Se descubrió metiendo un ^q inventado en
+        # palette.json y viendo que el test seguía en verde.
+        caret = len(tok) > 1 and tok.startswith("^")
+        if seq != "undefined-key":
+            continue
+        if not caret and first != "undefined-key":
+            continue
+        huerfanas.append(f"{mode}:{tok}")
+    # Las capas `visual` y `viopp` resuelven en vicmd lo que no definen, así que
+    # una tecla solo está huérfana de verdad si tampoco está ahí abajo.
+    # Segunda vuelta solo para los modos que TIENEN mapa de abajo. Un huérfano de
+    # `normal` ya se preguntó en vicmd la primera vez; volver a preguntarlo sería
+    # la misma respuesta con otro nombre.
+    conresp = [t for t in huerfanas if t.split(":", 1)[0] in FALLBACK_OF]
+    if conresp:
+        fb, _ = zsh_under_pty("\n".join(
+            f'print -r -- "FB|{t}|${{$(bindkey -M {FALLBACK_OF[t.split(":", 1)[0]]} '
+            f'-- {shlex_q(t.split(":", 1)[1])} 2>&1)##* }}"' for t in conresp))
+        alive = {ln.split("|")[1] for ln in clean_pty(fb).split("\n")
+                 if ln.startswith("FB|") and not ln.rstrip().endswith("undefined-key")}
+        huerfanas = [t for t in huerfanas if t not in alive]
+    r.check("cada atajo anunciado está atado", not huerfanas,
+            "sin atar: " + ", ".join(huerfanas[:6]))
+
+
+def shlex_q(s: str) -> str:
+    return "'" + s.replace("'", "'\\''") + "'"
+
+
+def check_keys_windows(r: Report, pal: dict) -> None:
+    """El lado Windows no se puede EJECUTAR desde aquí, pero sí leer.
+
+    Es una comprobación de texto y lo es a sabiendas: no prueba que el atajo
+    haga lo correcto, prueba que ninguna tecla del chuletario se quede sin
+    código. Eso es justo la deriva que se cuela al añadir una línea a
+    palette.json y olvidarse de la plantilla.
+    """
+    r.section("atajos de Windows (lectura estática)")
+    root = pathlib.Path(__file__).resolve().parent.parent
+    tmpl = root / "windows/claude-keys.ahk.tmpl"
+    if not tmpl.exists():
+        r.check("la plantilla existe", False, str(tmpl))
+        return
+    sys.path.insert(0, str(root / "lib"))
+    import keys as keysmod                                   # noqa: E402
+
+    try:
+        src = keysmod.render_script(pal)
+    except SystemExit as e:
+        r.check("la plantilla se resuelve entera", False, str(e))
+        return
+    r.check("la plantilla se resuelve entera", "@@" not in src)
+    r.check("declara AutoHotkey v2", "#Requires AutoHotkey v2.0" in src)
+
+    w = pal["keys"]["windows"]
+    r.check(f"el modo se abre con {w['hotkeyLabel']}",
+            f"\n{w['hotkey']}::" in src, w["hotkey"])
+
+    # Cada tecla anunciada tiene su `case` en la función del submapa. `Esc` lo
+    # trata Act() para todos, y las cifras van por expresión regular.
+    fn_of = {"normal": "ActNormal", "window": "ActWindow", "desktop": "ActDesktop"}
+    bodies = {}
+    for mode, fn in fn_of.items():
+        m = re.search(rf"^{fn}\(key\) \{{(.*?)^\}}", src, re.S | re.M)
+        bodies[mode] = m.group(1) if m else ""
+    faltan = []
+    for mode, m in w["modes"].items():
+        for keyfield, _desc in m.get("hints", []):
+            for tok in keyfield.split():
+                if tok == "Esc":
+                    continue
+                if mode == "apps":
+                    if f'APPS["{tok}"]' not in src:
+                        faltan.append(f"{mode}:{tok}")
+                    continue
+                if tok == "1-9":
+                    if "[1-9]" not in bodies[mode]:
+                        faltan.append(f"{mode}:1-9")
+                    continue
+                if f'"{tok}"' not in bodies.get(mode, ""):
+                    faltan.append(f"{mode}:{tok}")
+    r.check("cada tecla del chuletario tiene código", not faltan,
+            "sin código: " + ", ".join(faltan[:6]))
+
+    # El cajón de sastre: sin él, una tecla suelta dentro del modo se escribe en
+    # la aplicación de debajo.
+    r.check("todas las letras y cifras se capturan en modo",
+            'StrSplit("abcdefghijklmnopqrstuvwxyz0123456789")' in src)
+    # WS_EX_NOACTIVATE. Si la banda robara el foco, «maximizar la ventana
+    # activa» maximizaría la banda.
+    r.check("la banda no roba el foco", "+E0x08000020" in src)
+
+    # OnExit por debajo del primer atajo es código muerto: la sección de
+    # autoejecución de AutoHotkey termina ahí. Costó una tarde de sondas.
+    hot = src.find(f"\n{w['hotkey']}::")
+    r.check("OnExit se registra (va antes del primer atajo)",
+            0 < src.find("OnExit(") < hot, "está por debajo del primer atajo")
+
+    # El Trim de AutoHotkey recorta espacios y tabuladores, NO saltos de línea,
+    # y la shell escribe el fichero con `print`. Sin los caracteres explícitos la
+    # banda no aparecía nunca y no daba ningún error.
+    r.check("el interruptor se lee sin el salto de línea",
+            'Trim(FileRead(HINTFILE), " `t`r`n")' in src)
+
+    _ahk_loads(r, pal, src)
+
+
+def _ahk_loads(r: Report, pal: dict, src: str) -> None:
+    """Que AutoHotkey lo CARGUE, no solo que el texto tenga buena pinta.
+
+    `/ErrorStdOut` es lo que hace esto posible desde aquí: sin él, un error de
+    sintaxis abre un diálogo en el escritorio de Windows y desde WSL solo se ve
+    un proceso que no responde. Con él, el error sale por la salida estándar.
+
+    Se valida con `/validate` cuando existe y, si no, cargando el script de
+    verdad con el modo apagado y matándolo enseguida.
+    """
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+    import keys as keysmod                                   # noqa: E402
+
+    if not pathlib.Path("/mnt/c").is_dir():
+        r.skip("AutoHotkey carga el script", "esto no es WSL")
+        return
+    import apply_windows                                     # noqa: E402
+    ahk = keysmod.find_ahk(apply_windows.win_userprofile())
+    if not ahk:
+        r.skip("AutoHotkey carga el script", "AutoHotkey v2 no instalado")
+        return
+
+    tmp = pathlib.Path(os.environ.get("TMPDIR", "/tmp")) / "claude-selftest-keys.ahk"
+    with tmp.open("w", encoding="utf-8", newline="\r\n") as fh:
+        # ExitApp al final de la autoejecución: carga, comprueba y se va sin
+        # dejar un proceso ni robar Alt+Space durante el test.
+        fh.write(src.replace("OnExit((*) => HideOSD())",
+                             "OnExit((*) => HideOSD())\nExitApp()", 1))
+    win = subprocess.run(["wslpath", "-w", str(tmp)],
+                         capture_output=True, text=True).stdout.strip()
+    try:
+        # En BYTES, no en texto. AutoHotkey escribe sus errores en la página de
+        # códigos del sistema, no en UTF-8, y con text=True el propio decodeo
+        # revienta y tapa el error de verdad — que es justo lo que se quería ver.
+        out = subprocess.run([str(ahk), "/ErrorStdOut", win], capture_output=True,
+                             timeout=45, cwd="/mnt/c")
+        msg = (out.stdout + out.stderr).decode("cp850", "replace").strip().replace("\r", "")
+    except Exception as e:                                  # pragma: no cover
+        msg = str(e)
+    finally:
+        tmp.unlink(missing_ok=True)
+    r.check("AutoHotkey carga el script sin errores", not msg,
+            msg.splitlines()[0][:70] if msg else "")
 
 
 def check_delta(r: Report, pal: dict) -> None:
@@ -262,7 +541,9 @@ def check_render(r: Report, pal: dict) -> None:
     for what, probe in (("palette.zsh", lambda s: "CC_HEX_TEAL" in s),
                         ("scheme",      lambda s: json.loads(s).get("cyan")),
                         ("vscode",      lambda s: json.loads(s).get("terminal.background")),
-                        ("registry",    lambda s: "\t" in s)):
+                        ("registry",    lambda s: "\t" in s),
+                        ("keymap.zsh",  lambda s: "CC_KEYS_SHELL_NORMAL" in s),
+                        ("keys.ahk",    lambda s: "MODES[" in s)):
         try:
             out = subprocess.run([sys.executable, str(root / "lib/render.py"), what],
                                  capture_output=True, text=True, timeout=30)
@@ -283,8 +564,12 @@ def main() -> int:
     pal = render.load()
     print(f"{TEAL}auto-test{OFF} {GREY}paleta «{pal['name']}»{OFF}\n")
     r = Report()
-    check_shell(r, pal)
+    probe = check_shell(r, pal)
     check_delta(r, pal)
+    print()
+    check_keys(r, pal, probe)
+    print()
+    check_keys_windows(r, pal)
     print()
     check_render(r, pal)
     print()

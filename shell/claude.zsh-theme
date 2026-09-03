@@ -75,5 +75,10 @@ setopt PROMPT_SUBST
 # %(5~|…) → a partir de 5 niveles muestra  ~/…/tres/ultimos/tramos
 CLAUDE_CWD="%(5~|%-1~/%F{$CC_HEX_GREY}…%F{$CC_HEX_TEAL}/%3~|%~)"
 
-PROMPT='$(_claude_context)%F{'"$CC_HEX_TEAL"'}'"$CLAUDE_CWD"'%f$(git_prompt_info)$(git_prompt_status)%f %(?.%F{'"$CC_HEX_TEAL"'}.%F{'"$CC_HEX_RED"'})❯%f '
+# La tira de atajos, si claude-40-keys.zsh está puesto. Es una VARIABLE y no un
+# $(…) a propósito: la sustitución de comandos se come el salto de línea final,
+# que es justo lo que separa la tira del prompt, y encima forkearía en cada
+# redibujado. Si la capa 40 no está, el parámetro no existe, expande a vacío y
+# este prompt es exactamente el de antes.
+PROMPT='${_claude_keys_bar}$(_claude_context)%F{'"$CC_HEX_TEAL"'}'"$CLAUDE_CWD"'%f$(git_prompt_info)$(git_prompt_status)%f %(?.%F{'"$CC_HEX_TEAL"'}.%F{'"$CC_HEX_RED"'})❯%f '
 RPROMPT='%(?..%F{'"$CC_HEX_RED"'}✗%?%f )%F{'"$CC_HEX_AMBER"'}${_claude_elapsed}%f'

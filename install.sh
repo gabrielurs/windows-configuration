@@ -89,13 +89,16 @@ install_shell() {
   run mkdir -p "$CUSTOM/themes"
   snap_files "$CUSTOM/claude-00-palette.zsh" "$CUSTOM/claude-10-colors.zsh" \
              "$CUSTOM/claude-20-shell.zsh" "$CUSTOM/claude-30-tools.zsh" \
+             "$CUSTOM/claude-35-keymap.zsh" "$CUSTOM/claude-40-keys.zsh" \
              "$CUSTOM/themes/claude.zsh-theme" "$ZSHRC"
   step "claude-00-palette.zsh (generado desde palette.json)"
   [[ $DRY -eq 1 ]] || python3 "$ROOT/lib/render.py" palette.zsh > "$CUSTOM/claude-00-palette.zsh"
+  step "claude-35-keymap.zsh (generado desde palette.json)"
+  [[ $DRY -eq 1 ]] || python3 "$ROOT/lib/render.py" keymap.zsh > "$CUSTOM/claude-35-keymap.zsh"
   # El número del nombre es el orden de carga: oh-my-zsh sourcea $ZSH_CUSTOM/*.zsh
   # alfabéticamente, así que 30 ve lo que definieron 00, 10 y 20.
   local layer
-  for layer in claude-10-colors claude-20-shell claude-30-tools; do
+  for layer in claude-10-colors claude-20-shell claude-30-tools claude-40-keys; do
     step "$layer.zsh"
     run cp "$ROOT/shell/$layer.zsh" "$CUSTOM/$layer.zsh"
   done

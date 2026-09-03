@@ -101,6 +101,149 @@
     "sizeVSCode": 13,
     "nerdGlyphs": false
   },
+  "keys": {
+    "_comment": "Atajos estilo vim en las dos superficies: zsh (bindkey -v) y Windows (AutoHotkey). Aqui vive lo que se VE — el chuletario— y el interruptor. Las ATADURAS viven en el codigo (shell/claude-40-keys.zsh y windows/claude-keys.ahk.tmpl); el auto-test comprueba que lo que se ensena aqui esta realmente atado alli, que es la unica forma de que estas dos listas no deriven.",
+    "hints": "on",
+    "_hintsNote": "on | off. Un solo interruptor para las dos superficies. En caliente: `claude-keys off`, que escribe el fichero de estado de WSL y su gemelo en %LOCALAPPDATA% —el que sondea AutoHotkey— sin reinstalar nada.",
+    "stateFile": "${XDG_STATE_HOME:-~/.local/state}/claude-terminal-theme/hints",
+    "shell": {
+      "keyTimeout": 15,
+      "_keyTimeoutNote": "Centesimas de segundo que zsh espera a completar una secuencia. El defecto es 40 (0,4 s) y hace que Esc tarde en cambiar de modo. A 15 el modo responde; por debajo de 10 la fuga «jk» empieza a fallar al teclear rapido.",
+      "escape": "jk",
+      "_escapeNote": "La fuga a NORMAL sin estirar el menique hasta Esc. Vacia («») para desactivarla y dejar solo Esc.",
+      "cursor": {
+        "normal": 2,
+        "insert": 6,
+        "replace": 4,
+        "_note": "DECSCUSR: 1/2 bloque, 3/4 subrayado, 5/6 barra. Los pares son parpadeante/fijo. Este es el aviso de modo que cuesta CERO columnas, y por eso va siempre, tambien con hints en off."
+      },
+      "showIn": ["normal", "visual", "viopp"],
+      "_showInNote": "Los modos en los que aparece la tira. INSERT queda fuera a proposito: which-key ensena cuando dudas, y mientras escribes el prompt tiene que estar limpio, exactamente como estaba antes de este fichero.",
+      "modes": {
+        "normal": {
+          "badge": "NORMAL",
+          "role": "purple",
+          "hints": [
+            ["h l", "mover"],
+            ["j k", "historial"],
+            ["w b e", "palabra"],
+            ["0 ^ $", "linea"],
+            ["i a I A", "insertar"],
+            ["ciw diw", "cambiar/borrar palabra"],
+            ["ci\" ci(", "dentro de"],
+            ["cs ds ys", "rodear"],
+            ["dd D C", "borrar"],
+            ["u ^r", "deshacer/rehacer"],
+            ["/ n N", "buscar"],
+            ["v V", "visual"],
+            ["^x^e", "abrir en $EDITOR"]
+          ]
+        },
+        "insert": {
+          "badge": "INSERT",
+          "role": "teal",
+          "hints": [
+            ["jk  Esc", "a NORMAL"],
+            ["^a ^e", "inicio/fin"],
+            ["^w ^u", "borrar palabra/linea"],
+            ["^r", "historial difuso"],
+            ["^x^e", "abrir en $EDITOR"]
+          ]
+        },
+        "visual": {
+          "badge": "VISUAL",
+          "role": "amber",
+          "hints": [
+            ["h j k l", "extender"],
+            ["iw aw", "palabra"],
+            ["i\" i(", "dentro de"],
+            ["d c y", "borrar/cambiar/copiar"],
+            ["S", "rodear"],
+            ["Esc", "salir"]
+          ]
+        },
+        "viopp": {
+          "badge": "PENDIENTE",
+          "role": "orange",
+          "hints": [
+            ["w b e", "palabra"],
+            ["iw aw", "objeto palabra"],
+            ["i\" i( i{", "dentro de"],
+            ["a\" a( a{", "incluyendo"],
+            ["0 ^ $", "hasta"]
+          ]
+        }
+      }
+    },
+    "windows": {
+      "hotkey": "!Space",
+      "hotkeyLabel": "Alt+Space",
+      "_hotkeyNote": "Sintaxis de AutoHotkey: ! es Alt, ^ Ctrl, # Win, + Shift. Alt+Space PISA el menu de ventana de Windows (mover/tamano/cerrar); se devuelve manteniendola pulsada mas de passthroughMs. Flow Launcher sigue en Ctrl+Space: son dos atajos vecinos para cosas distintas, a proposito.",
+      "passthroughMs": 400,
+      "exitKey": "Escape",
+      "osd": {
+        "height": 34,
+        "cornerRadius": 10,
+        "marginBottom": 10,
+        "padding": 14,
+        "fontSize": 10,
+        "_positionNote": "Se ancla centrada sobre la barra de tareas: el borde inferior del area de trabajo ES el borde superior de la barra, asi que no hay que saber cuanto mide la barra. Click-through y sin foco (WS_EX_TRANSPARENT | WS_EX_NOACTIVATE): si robara el foco, los comandos de ventana actuarian sobre el propio OSD."
+      },
+      "tray": {
+        "idleRole": "grey",
+        "activeRole": "teal",
+        "_note": "Lo unico de la barra de tareas que reacciona al instante. El reloj no sirve: pide su texto por HTTP cada WebContentsUpdateInterval, que va en minutos — bien para una rama de git, inservible para un modo que cambia al pulsar una tecla."
+      },
+      "apps": [
+        ["t", "terminal", "wt.exe"],
+        ["e", "explorador", "explorer.exe"],
+        ["b", "navegador", "chrome.exe"],
+        ["c", "Claude", "claude.exe"]
+      ],
+      "modes": {
+        "normal": {
+          "badge": "NORMAL",
+          "role": "purple",
+          "hints": [
+            ["h j k l", "foco"],
+            ["H J K L", "mover a esa mitad"],
+            ["w", "ventana >"],
+            ["d", "escritorio >"],
+            ["a", "abrir >"],
+            ["Esc", "salir"]
+          ]
+        },
+        "window": {
+          "badge": "w . VENTANA",
+          "role": "teal",
+          "hints": [
+            ["k", "maximizar"],
+            ["j", "minimizar"],
+            ["y", "centrar"],
+            ["c", "cerrar"],
+            ["t", "siempre encima"],
+            ["Esc", "volver"]
+          ]
+        },
+        "desktop": {
+          "badge": "d . ESCRITORIO",
+          "role": "blue",
+          "hints": [
+            ["h l", "anterior/siguiente"],
+            ["1-9", "ir al escritorio"],
+            ["n", "nuevo"],
+            ["x", "cerrar este"],
+            ["Esc", "volver"]
+          ]
+        },
+        "apps": {
+          "badge": "a . ABRIR",
+          "role": "green",
+          "_hintsNote": "Sin lista propia: se derivan de `apps` en lib/render.py. Una sola tecla definida en un solo sitio."
+        }
+      }
+    }
+  },
   "windowsDesktop": {
     "_comment": "Geometría del diseño «Tema Windows Claude CLI»: barra de ancho completo pegada abajo, esquinas redondeadas solo arriba, siempre visible.",
     "taskbar": {

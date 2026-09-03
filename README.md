@@ -89,6 +89,10 @@ de registro a `%USERPROFILE%\claude-theme-backup\`.
 - `claude-30-tools.zsh` — fzf, eza, bat, fd, zoxide y delta vestidos con la paleta. Cada
   integración va dentro de un `command -v`: en una máquina sin esas herramientas la capa
   no hace nada y el shell arranca igual.
+- `claude-35-keymap.zsh` — generado desde `palette.json`: el chuletario de atajos y los
+  ajustes del modo vim. Solo datos, ni una atadura.
+- `claude-40-keys.zsh` — el modo vim de la línea de comandos, la tira de ayuda sobre el
+  prompt y el comando `claude-keys`. Ver [Los atajos de vim](#los-atajos-de-vim-y-cómo-se-aprenden).
 - `themes/claude.zsh-theme` — prompt de una línea: ruta teal (truncada a 3 tramos a
   partir de 5 niveles), rama azul, estado git por colores, `❯` que se pone rojo si el
   comando anterior falló, y a la derecha el código de salida y la duración si pasó de 2s.
@@ -454,9 +458,16 @@ ya tenías instaladas no se tocan.
 ./install.sh --self-test     # no toca nada, solo mira
 ```
 
-33 invariantes: el historial, las teclas, los widgets de fzf, que `delta` ve la paleta, que
-`palette.json` genera las cuatro superficies y que `ansi.cyan` sigue siendo el teal —de eso
+58 invariantes: el historial, las teclas, los widgets de fzf, que `delta` ve la paleta, que
+`palette.json` genera las seis superficies y que `ansi.cyan` sigue siendo el teal —de eso
 dependen `bat` y `delta`—. Sale con código 1 si algo falla, así que sirve para un hook o CI.
+
+Los atajos llevan su propia sección, y ahí la comprobación que importa es una: **cada tecla
+que el chuletario anuncia se le pregunta a `bindkey`**. Si alguien añade una línea a
+`palette.json` y se olvida de atarla, el test lo dice. Es la única forma de que la ayuda no
+acabe mintiendo, que es peor que no tenerla. En el lado Windows, además, se carga el script
+generado **con el propio AutoHotkey** (`/ErrorStdOut`): sin eso, un error de sintaxis abre un
+diálogo en el escritorio y desde WSL solo se ve un proceso que no responde.
 
 El shell se interroga **bajo un pty de verdad**, no con `zsh -i -c`. Sin terminal de control zsh
 no arranca ZLE y suelta `can't change option: zle`, que parece un fallo del tema y no lo es.
@@ -467,6 +478,11 @@ Dos cosas que este fichero aprendió a base de equivocarse, y que están comenta
   `emulate` resetea las opciones de compatibilidad y `AUTO_CD` es una de ellas, así que el test
   decía «off» mientras el shell la tenía en «on». Un test que normaliza el entorno no puede
   medir el entorno.
+- **El respaldo del chuletario tapaba los atajos de control.** Para validar `ciw` o `dd` hay
+  que mirar la PRIMERA tecla, porque el resto lo lee zsh después. Aplicado a `^r`, la primera
+  «tecla» es el acento circunflejo, que en `vicmd` es `vi-first-non-blank` — o sea que
+  cualquier atajo de control pasaba el test por la puerta de atrás. Salió metiendo un `^q`
+  inventado en `palette.json` y viendo que el test seguía en verde.
 - **La comprobación de los iconos lleva un control.** Antes hacía `ls | head`, y con una tubería
   delante eza apaga los iconos solo: la comprobación no podía fallar **nunca**. Ahora corre en un
   directorio de juguete sin tubería, y antes de afirmar nada verifica que `--icons=always` sí
@@ -474,6 +490,118 @@ Dos cosas que este fichero aprendió a base de equivocarse, y que están comenta
 
 Se descubrieron rompiendo el tema a propósito y viendo que el test seguía en verde. Merece la
 pena hacerlo cada vez que se añade una comprobación.
+
+## Los atajos de vim, y cómo se aprenden
+
+Dos superficies —la línea de comandos y las ventanas de Windows— con el mismo teclado y la
+misma idea: **entras en un modo, y aparece delante lo que puedes hacer ahora**. Which-key.
+Cuando ya te lo sepas, un interruptor apaga la ayuda en las dos a la vez y los atajos siguen
+donde estaban.
+
+```bash
+claude-keys          # la tabla entera, shell y Windows, con la paleta
+claude-keys off      # apaga la tira y la banda de Windows
+claude-keys on
+claude-keys status
+```
+
+`Ctrl+G` hace lo mismo sin soltar el teclado. El estado vive en un fichero, así que sobrevive
+a abrir una pestaña nueva y no hay que reinstalar nada para cambiarlo.
+
+### En la shell
+
+`Esc` entra en NORMAL y aparece **una fila sobre el prompt** con los atajos de ese modo. Al
+volver a INSERT desaparece: mientras escribes, el prompt es exactamente el de siempre.
+
+```
+ NORMAL   h l mover   j k historial   w b e palabra   0 ^ $ linea   i a I A insertar
+          ciw diw cambiar/borrar palabra   ci" ci( dentro de   cs ds ys rodear
+          dd D C borrar   u ^r deshacer/rehacer   / n N buscar   v V visual
+ ~/projects/claude-terminal-theme on main ❯ git commit -m "algo"
+```
+
+Lo que de verdad se gana no son las flechas: son los **objetos de texto**. `ci"` cambia lo de
+dentro de las comillas de un `git commit -m "…"` sin contar caracteres, `ciw` la palabra bajo
+el cursor, `cs"'` cambia unas comillas por otras. Y `Ctrl+X Ctrl+E` abre la línea entera en
+`$EDITOR` para el pipeline que ya no cabe en la cabeza.
+
+**La forma del cursor** cambia con el modo —bloque en NORMAL, barra en INSERT— y eso va
+siempre, también con la ayuda apagada: cuesta cero columnas y es el aviso que acabas
+mirando de reojo.
+
+Tres decisiones que no son obvias:
+
+- **La tira va ENCIMA del prompt, no en el `RPROMPT`.** Ahí ya viven el código de salida y la
+  duración, y zsh **borra el `RPROMPT` entero** cuando la línea que escribes crece hasta él:
+  una insignia de modo se esfumaría justo cuando llevas un comando largo. Añadiendo una fila
+  el prompt de siempre se queda intacto, byte a byte.
+- **`v` es modo visual, no el editor.** Media internet ata `v` a `edit-command-line`, y eso
+  deja el modo visual inalcanzable — el chuletario anunciaba un VISUAL al que no había forma
+  de llegar. El editor está en `Ctrl+X Ctrl+E`, que además es la combinación de bash de toda
+  la vida y funciona en los dos modos.
+- **Encender el modo vim rompe las teclas de la capa 20 si no se repiten.** `bindkey -e` las
+  ató a `main` cuando `main` era `emacs`; en cuanto `claude-40-keys.zsh` hace `bindkey -v`,
+  `main` pasa a ser `viins` y todo aquello deja de existir en el mapa activo. Por eso la capa
+  40 vuelve a atar Inicio, Fin, `Ctrl+←/→` y `Ctrl+Retroceso`, y añade `Ctrl+A`, `Ctrl+E`,
+  `Ctrl+W` y compañía dentro de INSERT.
+
+### En Windows
+
+`Alt+Space` abre el modo y una **banda anclada sobre la barra de tareas**, con la misma paleta.
+Al pulsar un prefijo la banda cambia al submapa.
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│ NORMAL   h j k l foco   H J K L mover a esa mitad   w ventana >  …     │
+└────────────────────────────────────────────────────────────────────────┘
+[▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ barra de tareas ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓]
+```
+
+| tecla | qué hace |
+|---|---|
+| `h j k l` | mueve el **foco** a la ventana que hay en esa dirección |
+| `H J K L` | manda la ventana activa a esa mitad de la pantalla |
+| `w` | submapa de ventana: maximizar, minimizar, centrar, cerrar, siempre encima |
+| `d` | submapa de escritorio: anterior, siguiente, ir al N, nuevo, cerrar |
+| `a` | abrir: terminal, explorador, navegador, Claude |
+| `Esc` | en un submapa vuelve al raíz; en el raíz, sale |
+
+El **icono de bandeja** cambia de gris a teal con el modo. Es lo único de la barra de tareas
+que reacciona al instante: el reloj no sirve para esto, porque pide su texto por HTTP cada
+`WebContentsUpdateInterval` —que va en minutos—, y eso está bien para una rama de git e
+inservible para un modo que cambia al pulsar una tecla.
+
+`Alt+Space` **pisa el menú de ventana de Windows** (mover / tamaño / cerrar). Se devuelve
+manteniéndola pulsada más de 400 ms. Flow Launcher sigue en `Ctrl+Space`: son dos atajos
+vecinos para cosas distintas, a propósito.
+
+El foco de `h j k l` es **espacial de verdad**, no un ciclo por orden Z: se elige la ventana
+cuyo centro cae en esa dirección y está más cerca, con lo perpendicular pesando el doble para
+que lo que tienes justo al lado gane a lo que está lejos en diagonal. Y descarta las ventanas
+*cloaked*: Windows deja las de los otros escritorios virtuales existiendo y marcadas como
+visibles, así que sin esa comprobación «foco a la derecha» te sacaba del escritorio.
+
+### Dónde se cambia
+
+Todo en `palette.json`, bajo `keys`: el chuletario, el interruptor de fábrica, la tecla del
+modo, la geometría de la banda y los colores. Las **ataduras** viven en el código
+(`shell/claude-40-keys.zsh` y `windows/claude-keys.ahk.tmpl`), y que las dos listas no deriven
+lo vigila `--self-test`.
+
+### Lo que costó encontrarlo
+
+- **El `Trim` de AutoHotkey no recorta saltos de línea**, solo espacios y tabuladores. La shell
+  escribe el interruptor con `print`, que deja un `\n`, así que el script leía «on\n», nunca era
+  igual a «on», y la banda **no aparecía jamás** — el modo funcionando y sin explicarse nunca,
+  que es lo contrario de para lo que existe. Y sin dar ningún error.
+- **La autoejecución de AutoHotkey termina en la primera definición de atajo.** Un `OnExit()`
+  al final del fichero, por debajo de los atajos, no se registra nunca y no se queja.
+- **El modo visual de zsh no cambia `$KEYMAP`.** Sigue diciendo `vicmd` y usa el keymap
+  `visual` como una capa por encima. Preguntando solo por `$KEYMAP`, la tira anunciaba NORMAL
+  mientras seleccionabas. Lo que hay que mirar es `$REGION_ACTIVE`.
+- **Los ganchos de ZLE se encadenan, no se pisan.** oh-my-zsh carga los plugins *antes* que
+  estas capas, y zsh-syntax-highlighting cuelga de `zle-line-pre-redraw`. Un `zle -N` ahí deja
+  el resaltado muerto sin decir por qué; `add-zle-hook-widget` respeta al que ya estaba.
 
 ## La capa de dotfiles
 
@@ -497,6 +625,9 @@ solo error: simplemente no hace nada. Detalle en [dotfiles/README.md](dotfiles/R
 - la parte de Windows necesita WSL con `/mnt/c` montado e interop activo
 - el dock flotante necesita Windhawk con los mods *Windows 11 Taskbar Styler* y
   *Windows 11 Start Menu Styler* instalados
+- **opcional**: AutoHotkey v2 para los atajos de ventanas. El instalador lo ofrece por
+  winget; sin él, el modo vim de la shell funciona igual y el paso de Windows se salta
+  diciéndolo
 
 Sin WSL, `./install.sh --shell` funciona igual en Linux o macOS.
 

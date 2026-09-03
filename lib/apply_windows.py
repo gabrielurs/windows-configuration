@@ -9,7 +9,7 @@ from __future__ import annotations
 import argparse, collections, datetime, glob, json, os, pathlib, shutil, subprocess, sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-import render, state, desktop, uninstall, flow  # noqa: E402
+import render, state, desktop, uninstall, flow, keys  # noqa: E402
 
 STAMP = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
 MARKER_KEYS_VSCODE = ("terminal.background", "terminal.ansiCyan", "panel.background")
@@ -287,6 +287,12 @@ def build_steps(pal: dict | None, home) -> list[Step]:
             ctx.note("buscador flotante")
         return False
 
+    def keymap(ctx):
+        if not keys.apply(pal, ctx.snap, ctx, home):
+            return False
+        ctx.note("atajos de ventanas")
+        return False
+
     def icons(ctx):
         if not desktop.apply_pinned_icons(pal, ctx.snap, ctx, home):
             return False
@@ -307,6 +313,7 @@ def build_steps(pal: dict | None, home) -> list[Step]:
         Step("taskbar",  "barra de tareas",        taskbar),
         Step("menu",     "menú contextual",        menu),
         Step("launcher", "buscador flotante",      launcher),
+        Step("keys",     "atajos de ventanas",     keymap),
         Step("icons",    "iconos de los anclados", icons),
         Step("windhawk", "Windhawk",               windhawk),
     ]

@@ -9,7 +9,7 @@ from __future__ import annotations
 import pathlib, subprocess, sys, time
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-import state, windhawk  # noqa: E402
+import state, windhawk, keys  # noqa: E402
 
 UNIT = "claude-gitbranch.service"
 
@@ -94,6 +94,10 @@ def run(dry: bool = False, win_home: pathlib.Path | None = None) -> bool:
 
     _stop_gitbranch(dry)
     _stop_flow(dry)
+    # Mismo motivo que con Flow y con explorer: si el .ahk sigue vivo cuando el
+    # snapshot borra su fichero, se queda un proceso sin script atrapando
+    # Alt+Space hasta el siguiente reinicio.
+    keys.stop(dry)
     ok, bad, admin = snap.restore()
     print(f"\n{ok} restaurados, {bad} con problemas")
 
