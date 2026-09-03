@@ -84,6 +84,11 @@ de registro a `%USERPROFILE%\claude-theme-backup\`.
 - `claude-00-palette.zsh` — generado desde `palette.json`, define `CC_TEAL`, `CC_HEX_TEAL`…
 - `claude-10-colors.zsh` — `LS_COLORS`, `GREP_COLORS`, `LESS_TERMCAP_*`, colores del
   completado y los estilos de los dos plugins de resaltado. Trae `claude-palette`.
+- `claude-20-shell.zsh` — cómo se **comporta** el shell: historial, completado y teclas.
+  Aquí no se pinta nada.
+- `claude-30-tools.zsh` — fzf, eza, bat, fd, zoxide y delta vestidos con la paleta. Cada
+  integración va dentro de un `command -v`: en una máquina sin esas herramientas la capa
+  no hace nada y el shell arranca igual.
 - `themes/claude.zsh-theme` — prompt de una línea: ruta teal (truncada a 3 tramos a
   partir de 5 niveles), rama azul, estado git por colores, `❯` que se pone rojo si el
   comando anterior falló, y a la derecha el código de salida y la duración si pasó de 2s.
@@ -347,6 +352,69 @@ oh-my-zsh, los plugins, Windhawk. El servicio de la rama de git se genera desde 
 plantilla con la ruta real del repo y se engancha a systemd. Y `--dry-run` te enseña la
 lista entera de cambios sin tocar nada, que es la forma sensata de estrenar máquina.
 
+## El shell, más allá del color
+
+Las capas `20` y `30` son lo que separa «un terminal bonito» de «un terminal que se
+usa». El número del nombre es el orden de carga: oh-my-zsh sourcea `$ZSH_CUSTOM/*.zsh`
+por orden alfabético, así que la `30` ya tiene los `CC_HEX_*` que definió la `00`.
+
+**Historial que no se pierde.** 100 000 líneas dentro y fuera, `SHARE_HISTORY` para que
+las pestañas se vean entre ellas al vuelo, y cuatro `HIST_*_DUPS` para que buscar no te
+devuelva el mismo `git status` catorce veces. Una línea que empieza por espacio no se
+guarda. El precio de `SHARE_HISTORY` está dicho en el propio fichero: la flecha arriba
+puede traerte algo escrito en otra pestaña. A cambio no pierdes nada al cerrar.
+
+**Reverse-search de verdad.** `Ctrl+R` pasa a ser una ventana flotante de fzf, difusa y
+con la paleta: escribe `git comm` y encuentra el commit aunque no recuerdes el orden.
+`Ctrl+T` busca ficheros con vista previa coloreada, `Alt+C` salta de directorio.
+
+**Tabulación navegable.** `menu select` con flechas y `Shift+Tab` hacia atrás, matching
+insensible a mayúsculas y por trozos —`c-t<Tab>` completa `claude-terminal-theme`—, y
+los candidatos agrupados bajo epígrafes en ámbar en vez de un tapiz plano.
+
+**Teclas que ya deberían venir puestas.** Inicio, Fin, Supr, `Ctrl+←/→` por palabras y
+`Ctrl+Retroceso` borrando una palabra atrás. `WORDCHARS` va sin la barra, así que
+`Ctrl+W` se come **un tramo de ruta**, no la ruta entera.
+
+### Las herramientas, y por qué estas
+
+| | qué aporta | cómo se colorea |
+|---|---|---|
+| `fzf` | el `Ctrl+R`, el `Ctrl+T` y el salto de directorio | `FZF_DEFAULT_OPTS` desde `CC_HEX_*` |
+| `eza` | `ls` con iconos y estado de git **por fichero** | `EZA_COLORS`, mismo esquema semántico |
+| `bat` | `cat` con sintaxis, y la vista previa del `Ctrl+T` | `BAT_THEME=ansi` |
+| `fd` | `find` usable, respeta `.gitignore` | — (alimenta a fzf) |
+| `zoxide` | `z proyectos` salta a lo más visitado | — |
+| `delta` | diffs de git legibles | `GIT_CONFIG_*` por entorno |
+| `gh` `lazygit` `btop` `duf` `httpie` `tldr` | el resto del lote | — |
+
+**El truco de `bat` y `delta` es el mismo, y es el que hace que esto no se desincronice.**
+`ansi` no es un tema propio: pinta con los 16 colores del terminal, y en `palette.json` esos
+16 **son** la paleta (`ansi.cyan` es el teal `#4DD6C1`). O sea que ni `bat` ni `delta` llevan
+fichero de tema: cambias un hex en `palette.json`, relanzas `./install.sh`, y siguen al resto.
+
+Sobre `eza`: la tentación era darle *más* colores. No se hizo. La paleta asigna un color por
+**tipo de dato**, no por extensión, y eso es lo que permite que una ruta sea teal en el prompt,
+en `ls` y en `grep`. Lo que `eza` añade no son colores, son **iconos** y la columna de git.
+
+Dos avisos que ahorran un rato:
+
+- En Debian y Ubuntu los binarios se llaman **`batcat`** y **`fdfind`** — los nombres cortos
+  ya estaban cogidos. La capa `30` pone las alias, pero un script tuyo que llame a `bat` fuera
+  de zsh no las verá.
+- **`cat` se deja en paz a propósito.** Aliasarlo a `bat` rompe las tuberías de cualquiera que
+  espere texto pelado.
+
+`delta` se configura por `GIT_CONFIG_COUNT` y **no** escribiendo en tu `~/.gitconfig`: ese
+fichero es tuyo, y si el tema lo tocara el desinstalador tendría que restaurarlo.
+
+`lazygit` es el único que no está en el apt de Ubuntu 24.04; el instalador se baja el binario
+de su release a `~/.local/bin`. Si eso falla, avisa y sigue — no bloquea nada.
+
+Con `CTT_TOOLS=0 ./install.sh` no se instala ninguna: el shell funciona igual, solo con menos.
+Y `--uninstall` **no las desinstala** — quita las capas del tema, pero unas herramientas que
+ya tenías instaladas no se tocan.
+
 ## La capa de dotfiles
 
 `--dotfiles` es opcional y no reescribe tu `.zshrc`: copia los ficheros de
@@ -363,6 +431,9 @@ solo error: simplemente no hace nada. Detalle en [dotfiles/README.md](dotfiles/R
 - zsh ≥ 5.7 y [oh-my-zsh](https://ohmyz.sh/) — los hex en el prompt necesitan 5.7
 - un terminal con color de 24 bits
 - `python3` (solo para el instalador)
+- **opcional**: fzf, eza, bat, fd, zoxide y delta. El instalador los pone si faltan; sin
+  ellos la capa `claude-30-tools.zsh` no hace nada y el shell arranca igual (`CTT_TOOLS=0`
+  para no instalarlos)
 - la parte de Windows necesita WSL con `/mnt/c` montado e interop activo
 - el dock flotante necesita Windhawk con los mods *Windows 11 Taskbar Styler* y
   *Windows 11 Start Menu Styler* instalados

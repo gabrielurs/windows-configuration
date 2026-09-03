@@ -86,11 +86,17 @@ install_shell() {
   say "ficheros del tema"
   run mkdir -p "$CUSTOM/themes"
   snap_files "$CUSTOM/claude-00-palette.zsh" "$CUSTOM/claude-10-colors.zsh" \
+             "$CUSTOM/claude-20-shell.zsh" "$CUSTOM/claude-30-tools.zsh" \
              "$CUSTOM/themes/claude.zsh-theme" "$ZSHRC"
   step "claude-00-palette.zsh (generado desde palette.json)"
   [[ $DRY -eq 1 ]] || python3 "$ROOT/lib/render.py" palette.zsh > "$CUSTOM/claude-00-palette.zsh"
-  step "claude-10-colors.zsh"
-  run cp "$ROOT/shell/claude-10-colors.zsh" "$CUSTOM/claude-10-colors.zsh"
+  # El número del nombre es el orden de carga: oh-my-zsh sourcea $ZSH_CUSTOM/*.zsh
+  # alfabéticamente, así que 30 ve lo que definieron 00, 10 y 20.
+  local layer
+  for layer in claude-10-colors claude-20-shell claude-30-tools; do
+    step "$layer.zsh"
+    run cp "$ROOT/shell/$layer.zsh" "$CUSTOM/$layer.zsh"
+  done
   step "claude.zsh-theme"
   run cp "$ROOT/shell/claude.zsh-theme" "$CUSTOM/themes/claude.zsh-theme"
   [[ -f "$CUSTOM/claude-colors.zsh" ]] && { step "retiro el claude-colors.zsh viejo"; run rm -f "$CUSTOM/claude-colors.zsh"; }
