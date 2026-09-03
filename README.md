@@ -15,6 +15,10 @@ comandos y en un `man`. El color deja de ser decoración y pasa a ser informaci�
                                                      └─ morado: flag  └─ ámbar: string
 ```
 
+Si vienes a retomar esto y no a instalarlo, empieza por **[HANDOFF.md](HANDOFF.md)**:
+estado actual, lo que se probó que no se puede —con la prueba al lado— y las trampas que
+cuestan una tarde.
+
 ## La paleta
 
 | color | | rol |
