@@ -135,6 +135,22 @@ Dos detalles que cuestan caro si no se saben:
   `TaskListButtonPanel` a `TaskListLabeledButtonPanel`. Hay que apuntar a las dos, o el
   fondo se queda sin pintar en cuanto se activan las etiquetas
 
+**Los botones de la ventana se tapan solos si te descuidas.** Pintar
+`Grid#TabContainerGrid` —el contenedor de la franja del título— con un fondo opaco hace
+desaparecer minimizar, maximizar y cerrar. No es cosa de Windows ni del mod del borde
+(ese solo llama a `DwmSetWindowAttribute` con `DWMWA_BORDER_COLOR`): esos botones se
+dibujan **por debajo** del árbol XAML y cualquier capa opaca a ese nivel los oculta.
+
+Medido: con el contenedor pintado, en un recorte de 200×46 px de esa esquina no aparecía
+ni un píxel de glifo, solo cuatro colores planos. Al dejar de pintarlo, salen los tres.
+Probados cuatro contenedores por encima con colores distintos en una pasada —
+`FileExplorerTabControl` y `Grid#RootContainer` no enganchan, `TabContainerGrid > Border`
+pinta un filete de 731 px, y `TabView` sí pinta la franja **pero también los tapa**.
+
+Por eso las pestañas se pintan con `TabViewListView#TabListView`, que es solo la lista, y
+el resto de la franja se intenta por `themeResourceVariables` — sustituyendo el recurso
+del que sale el gris en vez de superponer una capa.
+
 **El Explorador es híbrido, y eso marca el límite.** Medido sobre una captura, no
 supuesto: pestañas, barra de comandos y barra de direcciones son XAML y sí toman la
 paleta (`#07090A` / `#0A0D0F`). La lista de ficheros, el árbol de la izquierda y la barra

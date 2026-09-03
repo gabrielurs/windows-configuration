@@ -336,10 +336,8 @@ def explorer_settings(pal: dict) -> dict[str, object]:
     """
     es = pal["windowsDesktop"]["explorer"].get("surfaces", {})
     s = pal["surfaces"]
-    chrome = argb(es.get("chrome", s["bgAlt"]))   # barras: comandos y direcciones
-    canvas = argb(es.get("tabs", s["bg"]))        # tira de pestañas y lienzo XAML
-    tabsel = argb(es.get("tabSelected", s["bgAlt"]))   # la pestaña activa
-    field = argb(es.get("input", s["bg"]))        # pastilla de direcciones y búsqueda
+    # un solo tono para todo el chrome; los bordes hacen la separación
+    chrome = canvas = tabsel = field = argb(es.get("chrome", s["bgAlt"]))
     under = argb(es.get("tabUnderline", "#4DD6C1"), es.get("tabUnderlineAlpha", "4D"))
     rad = int(es.get("inputRadius", 6))
     # el panel de navegación no está: es Win32, no hay target XAML al que apuntar
@@ -370,8 +368,13 @@ def explorer_settings(pal: dict) -> dict[str, object]:
             f'Background:=<SolidColorBrush Color="{field}" />',
             f'BorderBrush:=<SolidColorBrush Color="{edge}" />',
             f"CornerRadius={rad}"]),
-        # pestañas
-        ("Grid#TabContainerGrid", [f'Background:=<SolidColorBrush Color="{canvas}" />']),
+        # Pestañas: se pinta TabListView y NO TabContainerGrid. El segundo abarca
+        # la franja entera del título, incluida la zona por donde DWM compone los
+        # botones de minimizar, maximizar y cerrar — que son área NO cliente y se
+        # ven por debajo. Pintarlo opaco los tapaba: en una captura de la zona,
+        # 200x46 px, no salía ni un píxel de glifo, solo cuatro colores planos.
+        ("Microsoft.UI.Xaml.Controls.Primitives.TabViewListView#TabListView", [
+            f'Background:=<SolidColorBrush Color="{canvas}" />']),
         ("TabViewItem > Grid#LayoutRoot > Canvas > Microsoft.UI.Xaml.Shapes.Path#SelectedBackgroundPath", [
             f'Fill:=<SolidColorBrush Color="{tabsel}" />']),
         # el borde teal bajo las pestañas: en v2 es lo que separa el chrome del
@@ -395,6 +398,14 @@ def explorer_settings(pal: dict) -> dict[str, object]:
         "theme": "",
         "backgroundTranslucentEffect": "",
         "styleConstants[0]": "",
+        # La franja del título a la derecha de las pestañas se queda con el
+        # #202020 de Explorer, y no por falta de intentarlo. No se puede pintar
+        # con un estilo: los botones de minimizar/maximizar/cerrar se dibujan por
+        # DEBAJO del árbol XAML y cualquier fondo opaco ahí los tapa — medido,
+        # cero píxeles de glifo con TabView de fondo. Y tampoco cede por recurso:
+        # probados SolidBackgroundFillColorBase, su Brush y
+        # LayerOnMicaBaseAltFillColorDefault, los tres sin efecto sobre esa
+        # superficie. Entre franja uniforme y botones visibles, botones.
         "themeResourceVariables[0]": "",
     }
     for i, (target, rules) in enumerate(styles):

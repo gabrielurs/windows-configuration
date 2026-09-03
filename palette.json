@@ -148,17 +148,13 @@
         }
       ],
       "surfaces": {
-        "_comment": "Valores de la seccion 06 de v2, medidos de su maqueta. v2 NO armoniza con el #191919 de Windows: vuelve al gris oscuro del tema y deja que el escalon lea como capas, apoyandose en el borde teal bajo las pestanas para separar chrome de contenido. Es la decision contraria a la que tomamos antes; el underline es lo que la sostiene.",
+        "_comment": "UN SOLO TONO para todo el chrome del Explorador: pestanas, pestana activa, barra de comandos, fila de direcciones y pastilla. Las tres alturas distintas de v2 (#0A0D0F / #07090A / #080B0D) se leian como parches. Lo que separa ahora son los bordes de 1px y el subrayado teal bajo las pestanas, no la luminancia.",
         "_win32": "#191919",
-        "tabs": "#0A0D0F",
-        "tabSelected": "#07090A",
-        "chrome": "#080B0D",
-        "input": "#0A0D0F",
+        "chrome": "#0A0D0F",
         "border": "#1A2026",
         "tabUnderline": "#4DD6C1",
         "tabUnderlineAlpha": "4D",
-        "inputRadius": 5,
-        "tabRadius": 7
+        "inputRadius": 5
       }
     },
     "gitBranch": {
