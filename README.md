@@ -16,6 +16,43 @@ comandos y en un `man`. El color deja de ser decoración y pasa a ser informaci�
                                                      └─ morado: flag  └─ ámbar: string
 ```
 
+## Cómo se ve
+
+Capturas del modo claro, que es el que lleva hoy `palette.json` (`windowsMode` y
+`terminalMode` en `light`), en una pantalla de 1920×1080 al 100 %. Un solo fondo,
+`#F3F3F3`, en el terminal, la barra, el Explorador y las herramientas.
+
+**El terminal.** Windows Terminal con tmux dentro. La pestaña dice la carpeta, `ls` lleva
+iconos, `bat` resalta con el reparto de la paleta —cadenas ámbar, palabras clave moradas,
+comentarios en cursiva— y el prompt enseña el repo y la rama.
+
+![Windows Terminal con el tema: ls con iconos, bat y git log](docs/img/terminal.png)
+
+Al pulsar `Esc` la línea de comandos pasa a modo NORMAL de vim y aparece la tira con lo que
+se puede hacer; al volver a escribir, se va.
+
+![La tira de atajos en modo NORMAL](docs/img/terminal-modo-normal.png)
+
+**Las herramientas.** lazygit, vim y `man` con la misma paleta, sin pintar su propio fondo.
+
+![lazygit, vim y una página de man con la paleta](docs/img/herramientas.png)
+
+![btop con la paleta](docs/img/btop.png)
+
+**La barra de tareas**, a 36 px: Inicio con el chevron del prompt y `cpu · ram · rama` a la
+izquierda, las aplicaciones en el centro, y hora y fecha en una línea a la derecha. (Tres
+recortes de la misma barra, ampliados al doble.)
+
+![La barra de tareas: izquierda, centro y derecha](docs/img/barra.png)
+
+**El Explorador**, sin barra de comandos: de la pestaña a la lista hay 87 px en vez de 136.
+
+![El Explorador con la cabecera compacta](docs/img/explorador.png)
+
+**El puntero**, oscuro con borde blanco, para que no se pierda sobre un escritorio claro.
+
+![El juego de punteros](docs/img/puntero.png)
+
 Si vienes a retomar esto y no a instalarlo, empieza por **[HANDOFF.md](HANDOFF.md)**:
 estado actual, lo que se probó que no se puede —con la prueba al lado— y las trampas que
 cuestan una tarde.
