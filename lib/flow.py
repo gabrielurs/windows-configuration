@@ -50,6 +50,11 @@ def theme_xaml(pal: dict, have: set[str] | None = None) -> str:
     """
     s, ro = pal["surfaces"], pal["roles"]
     teal = ro["teal"]["hex"]
+    # Base.xaml trae el texto en #FFFFF8 y el cursor en #E3E0E3: bien sobre el
+    # fondo oscuro, invisibles sobre blanco. Solo la variante clara define
+    # `text`; sin él no se añade nada y el tema oscuro sale como siempre.
+    txt = pal["windowsDesktop"].get("launcher", {}).get("text")
+    ink = [("Foreground", txt)] if txt else []
 
     def style(key, base, target, setters=()):
         # si la version instalada no define ese Base*, mejor omitir el estilo
@@ -66,17 +71,17 @@ def theme_xaml(pal: dict, have: set[str] | None = None) -> str:
     blocks = [
         style("ItemGlyph", "BaseGlyphStyle", "TextBlock", [("Foreground", teal)]),
         style("QueryBoxStyle", "BaseQueryBoxStyle", "TextBox", [
-            ("SelectionBrush", s["selection"])]),
+            ("SelectionBrush", s["selection"])] + (ink + [("CaretBrush", txt)] if txt else [])),
         style("QuerySuggestionBoxStyle", "BaseQuerySuggestionBoxStyle", "TextBox", [
             ("Foreground", s["ghost"])]),
         style("WindowBorderStyle", "BaseWindowBorderStyle", "Border", [
             ("Background", s["bg"])]),
         style("WindowStyle", "BaseWindowStyle", "Window"),
         style("PendingLineStyle", "BasePendingLineStyle", "Line"),
-        style("ItemTitleStyle", "BaseItemTitleStyle", "TextBlock"),
+        style("ItemTitleStyle", "BaseItemTitleStyle", "TextBlock", ink),
         style("ItemSubTitleStyle", "BaseItemSubTitleStyle", "TextBlock", [
             ("Foreground", s["fgDim"])]),
-        style("ItemTitleSelectedStyle", "BaseItemTitleSelectedStyle", "TextBlock", [
+        style("ItemTitleSelectedStyle", "BaseItemTitleSelectedStyle", "TextBlock", ink + [
             ("Cursor", "Arrow")]),
         style("ItemSubTitleSelectedStyle", "BaseItemSubTitleSelectedStyle", "TextBlock", [
             ("Foreground", s["fgDim"]), ("Cursor", "Arrow")]),
@@ -91,6 +96,15 @@ def theme_xaml(pal: dict, have: set[str] | None = None) -> str:
         style("PreviewBorderStyle", "BasePreviewBorderStyle", "Border", [
             ("BorderBrush", s["border"])]),
     ]
+    if txt:
+        # el glifo seleccionado (#ffffff en Base) y el reloj de la caja vacía
+        # (#C6C6C6, 1.7:1 sobre blanco), que solo cantan en claro
+        blocks += [
+            style("ItemGlyphSelectedStyle", "BaseGlyphSelectedStyle", "TextBlock", [
+                ("Foreground", teal)]),
+            style("ClockBox", "BaseClockBox", "TextBlock", [("Foreground", s["fgDim"])]),
+            style("DateBox", "BaseDateBox", "TextBlock", [("Foreground", s["fgDim"])]),
+        ]
     return (
         '<ResourceDictionary\n'
         '    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"\n'

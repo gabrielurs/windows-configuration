@@ -246,6 +246,21 @@ bindkey -M viins '^H'      backward-kill-word      # Ctrl+Retroceso en WT
 bindkey -M vicmd '^[[H'    beginning-of-line
 bindkey -M vicmd '^[[F'    end-of-line
 
+# Alt+↑ ← →, los widgets de directorio de la capa 20. En los dos modos: moverse
+# de carpeta no es editar la línea, y da igual en cuál te pille.
+#
+# Ojo con Windows Terminal: de serie usa Alt+flechas para mover el foco entre
+# PANELES. Con un solo panel la tecla llega a la shell; con la pestaña partida
+# se la queda el terminal. Si eso molesta, se desata en su settings.json.
+() {
+  local km
+  for km in viins vicmd; do
+    bindkey -M $km '^[[1;3A' _claude_cd_up        # Alt+↑
+    bindkey -M $km '^[[1;3D' _claude_cd_back      # Alt+←
+    bindkey -M $km '^[[1;3C' _claude_cd_forward   # Alt+→
+  done
+}
+
 # En vi el retroceso NO cruza el punto donde entraste en INSERT: `vi-backward-
 # delete-char` se planta ahí y parece que la tecla se ha roto. Es fiel a vi y es
 # insufrible en una shell, donde la línea que editas no la has escrito tú entera.
@@ -346,7 +361,15 @@ bindkey -M vicmd '^r' redo
 (( ${+widgets[fzf-file-widget]} ))    && bindkey -M viins '^t' fzf-file-widget
 (( ${+widgets[fzf-cd-widget]} ))      && bindkey -M viins '\ec' fzf-cd-widget
 
+# Tab a fzf-tab, y a la fuerza. fzf-tab se ata a emacs y viins al cargar, pero
+# la capa 30 sourcea DESPUÉS el completion.zsh de fzf, que se queda con `^I`; y
+# fzf-tab pide ser el último en atarlo. Antes de esto, en viins Tab era el
+# `expand-or-complete` pelado de vi: ni el menú de fzf ni el `**` de fzf.
+(( ${+widgets[fzf-tab-complete]} )) && bindkey -M viins '^I' fzf-tab-complete
+
 # En el menú de completado NO se toca nada, y es una decisión, no un olvido.
+# (Con fzf-tab instalado ese menú ni aparece: Tab abre fzf. Lo de abajo vale
+# para una máquina sin él.)
 #
 # Aquí hubo un `bindkey -M menuselect h/j/k/l` porque «es lo que la mano espera
 # después de todo esto». Se quitó al probarlo: en el menú, una tecla imprimible

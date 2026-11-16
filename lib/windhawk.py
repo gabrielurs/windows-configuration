@@ -8,9 +8,10 @@ Los dos mods tienen que estar YA instalados desde la interfaz de Windhawk. Este
 módulo no instala mods, solo los configura; si no están, avisa y no toca nada.
 
 Base elegida, según el diseño «Tema Windows Claude CLI»:
-  · barra  → SIN tema base (theme=""), todo en controlStyles propios: ancho
-             completo, pegada abajo, esquinas redondeadas solo arriba. No es el
-             dock flotante de antes; el diseño pide barra siempre visible.
+  · barra  → SIN tema base (theme=""), controlStyles propios para la forma y
+             recursos de tema para los colores por estado: ancho completo,
+             pegada abajo, recta. No es el dock flotante de antes; el diseño
+             pide barra siempre visible.
   · inicio → tema integrado «TranslucentStartMenu», que expone $CommonBgBrush
              justamente para esto
   · reloj  → taskbar-clock-customization, dos líneas (hora sobre fecha) y las
@@ -35,6 +36,8 @@ STARTPOS_MOD = "taskbar-start-button-position"
 STARTICON_MOD = "start-button-replacer"
 BORDER_MOD = "win11-accent-border"
 ICONSIZE_MOD = "taskbar-icon-size"
+TRAY_MOD = "taskbar-tray-system-icon-tweaks"
+VOLUME_MOD = "taskbar-volume-control"
 MODS_KEY = r"HKLM\SOFTWARE\Windhawk\Engine\Mods"
 MODS_HIVE = r"HKEY_LOCAL_MACHINE\SOFTWARE\Windhawk\Engine\Mods"
 
@@ -103,7 +106,8 @@ def taskbar_settings(pal: dict) -> dict[str, object]:
         # abajo, contra el borde de la pantalla: a y=49 el relleno no empezaba
         # hasta x=9. El margen inferior negativo estira el rectángulo por debajo
         # del área visible, así que su redondeo de abajo cae fuera y solo se ven
-        # las esquinas superiores a 14px que pide la sección 02.
+        # las de arriba. Hoy `cornerRadius` va a 0: a 14, las de arriba dejaban a
+        # su vez dos cuñas con el fondo de pantalla (ver la nota en la paleta).
         ("Taskbar.TaskbarFrame > Grid#RootGrid > Taskbar.TaskbarBackground > Grid > Rectangle#BackgroundFill", [
             f'Fill:=<SolidColorBrush Color="{bg}" />',
             f"RadiusX={r}", f"RadiusY={r}",
@@ -116,24 +120,24 @@ def taskbar_settings(pal: dict) -> dict[str, object]:
             f"Padding={g['padding']}",
         ]),
         # Inicio: cuadrado teal tenue. AutomationId y no Name, porque el Name
-        # está traducido y en un Windows en español no casaría.
-        ("Taskbar.ExperienceToggleButton#LaunchListButton[AutomationProperties.AutomationId=StartButton] > Taskbar.TaskListButtonPanel > Border", [
+        # está traducido y en un Windows en español no casaría. Con `> * >`: en
+        # la build 26200.9974 el Border no es hijo directo del panel (sonda del
+        # 2026-11-16: `> Taskbar.TaskListButtonPanel > Border` no pinta nada).
+        ("Taskbar.ExperienceToggleButton#LaunchListButton[AutomationProperties.AutomationId=StartButton] > * > Border#BackgroundElement", [
             f"CornerRadius={g['buttonRadius']}",
             f'Background:=<SolidColorBrush Color="{argb(teal, g["startAlpha"])}" />',
         ]),
-        # El botón de cada app. Van los DOS nombres de clase a propósito: con
-        # «nunca combinar» los botones llevan etiqueta y la clase pasa de
-        # TaskListButtonPanel a TaskListLabeledButtonPanel. Apuntar solo a la
-        # primera deja el fondo sin pintar en cuanto se activan las etiquetas.
-        *[(f"Taskbar.{cls}@CommonStates > Border#BackgroundElement", [
+        # El botón de cada app: solo la forma. Los colores por estado van como
+        # recursos (ver RESOURCES abajo): los selectores con estado del README
+        # del mod —`Taskbar.TaskListLabeledButtonPanel@CommonStates > …`— no
+        # casan en esta build, ni con `> * >`; y un Background sin estado pinta
+        # igual el reposo, el hover y el activo.
+        ("Taskbar.TaskListButton > * > Border#BackgroundElement", [
             f"CornerRadius={g['buttonRadius']}",
-            "Background@InactiveNormal=Transparent",
-            f'Background@ActiveNormal:=<SolidColorBrush Color="{argb(teal, g["activeAlpha"])}" />',
-            f'Background@ActivePointerOver:=<SolidColorBrush Color="{argb(teal, "33")}" />',
-            f'Background@InactivePointerOver:=<SolidColorBrush Color="{argb("#FFFFFF", "1F")}" />',
-          ]) for cls in ("TaskListButtonPanel", "TaskListLabeledButtonPanel")],
-        # el indicador de app abierta. El diseño lo quiere del color de cada app;
-        # el styler no sabe qué app es cada botón, así que va teal para todas.
+        ]),
+        ("Taskbar.TaskListButton > * > Rectangle#RunningIndicator", [
+            "RadiusX=2", "RadiusY=2",
+        ]),
         # ── sección 08: previsualización al pasar el ratón y Alt+Tab ──
         # Solo aceptan fondo, borde y radio; la miniatura la pinta el sistema y
         # el marco del seleccionado es todo el margen que hay. Los targets salen
@@ -158,11 +162,6 @@ def taskbar_settings(pal: dict) -> dict[str, object]:
             f'BorderBrush:=<SolidColorBrush Color="{edge}" />',
             "BorderThickness=1",
             f"CornerRadius={g.get('switcherRadius', 12)}"]),
-        ("Taskbar.TaskListLabeledButtonPanel@RunningIndicatorStates > Rectangle#RunningIndicator", [
-            f'Fill@ActiveRunningIndicator:=<SolidColorBrush Color="{argb(teal)}" />',
-            f'Fill@InactiveRunningIndicator:=<SolidColorBrush Color="{argb(pal["windowsAccent"]["start"], "99")}" />',
-            "RadiusX=2", "RadiusY=2", f"Height={g['indicatorHeight']}",
-        ]),
         # reloj arriba en blanco, fecha abajo en gris
         ("TextBlock#TimeInnerTextBlock", [
             f'Foreground:=<SolidColorBrush Color="{argb(s["fg"])}" />',
@@ -172,17 +171,39 @@ def taskbar_settings(pal: dict) -> dict[str, object]:
             f'FontFamily={pal["windowsDesktop"]["clock"]["fontFamily"]}']),
     ]
 
+    # Los colores por estado de los botones, como recursos de tema: la plantilla
+    # de Windows los pinta con estos pinceles en cada estado, así que el hover y
+    # el activo siguen funcionando y solo cambia el color. Cada uno se midió con
+    # una sonda de colores chillones el 2026-11-16 (build 26200.9974), con una
+    # ventana de prueba propia para el aviso y la pulsación. Primary no salió en
+    # ningún estado y no se toca. Solo se aplican al reiniciar explorer.
+    brush = lambda c: f'<SolidColorBrush Color="{c}"/>'
+    amber = ro["amber"]["hex"]
+    resources = {
+        "RunningIndicatorBrush":                    argb(pal["windowsAccent"]["start"], "99"),  # abierta
+        "RunningIndicatorActiveBrush":              argb(teal),                                  # activa
+        "RunningIndicatorRequestingAttentionBrush": argb(amber),                                 # pide atención
+        "ShellTaskbarItemFillColorSecondaryBrush":  argb(teal, g["activeAlpha"]),                # botón activo
+        "ShellTaskbarItemFillColorAltSecondaryBrush": argb(g.get("hover", "#FFFFFF"), g.get("hoverAlpha", "1F")),  # hover
+        "ShellTaskbarItemFillColorTertiaryBrush":   argb(teal, "33"),        # pulsado, activo o no
+        # el aviso: ámbar, que en la paleta es «aviso», en vez del rosa de Windows
+        "RequestingAttentionBrush":                 argb(amber, "26"),
+        "RequestingAttentionHoverBrush":            argb(amber, "33"),       # por el nombre: el hover no se dejó medir
+        "RequestingAttentionPressedBrush":          argb(amber, "40"),
+    }
+
     out: dict[str, object] = {
         "theme": "",                  # sin tema base: la barra la definimos entera
         "clickThroughTaskbar": 0,     # eso era del dock; con barra completa, no
         "xamlDiagnosticsHandling": "alert",
         "styleConstants[0]": "",
-        "themeResourceVariables[0]": "",
     }
     for i, (target, rules) in enumerate(styles):
         out[f"controlStyles[{i}].target"] = target
         for j, rule in enumerate(rules):
             out[f"controlStyles[{i}].styles[{j}]"] = rule
+    for i, (key, color) in enumerate(resources.items()):
+        out[f"themeResourceVariables[{i}]"] = f"{key}:={brush(color)}"
     return out
 
 
@@ -396,7 +417,12 @@ def explorer_settings(pal: dict) -> dict[str, object]:
     es = pal["windowsDesktop"]["explorer"].get("surfaces", {})
     s = pal["surfaces"]
     # un solo tono para todo el chrome; los bordes hacen la separación
-    chrome = canvas = tabsel = field = argb(es.get("chrome", s["bgAlt"]))
+    chrome = tabsel = argb(es.get("chrome", s["bgAlt"]))
+    # En oscuro todo es un tono (canvas y field no se definen y caen al chrome).
+    # En claro son dos, como el Explorador nativo: chrome en la base y el
+    # contenido —y las cajas de texto— en el lienzo de la lista Win32.
+    canvas = argb(es["canvas"]) if "canvas" in es else chrome
+    field = argb(es["field"]) if "field" in es else chrome
     under = argb(es.get("tabUnderline", "#4DD6C1"), es.get("tabUnderlineAlpha", "4D"))
     rad = int(es.get("inputRadius", 6))
     # el panel de navegación no está: es Win32, no hay target XAML al que apuntar
@@ -433,7 +459,7 @@ def explorer_settings(pal: dict) -> dict[str, object]:
         # ven por debajo. Pintarlo opaco los tapaba: en una captura de la zona,
         # 200x46 px, no salía ni un píxel de glifo, solo cuatro colores planos.
         ("Microsoft.UI.Xaml.Controls.Primitives.TabViewListView#TabListView", [
-            f'Background:=<SolidColorBrush Color="{canvas}" />']),
+            f'Background:=<SolidColorBrush Color="{chrome}" />']),
         ("TabViewItem > Grid#LayoutRoot > Canvas > Microsoft.UI.Xaml.Shapes.Path#SelectedBackgroundPath", [
             f'Fill:=<SolidColorBrush Color="{tabsel}" />']),
         # el borde teal bajo las pestañas: en v2 es lo que separa el chrome del
@@ -504,6 +530,42 @@ def notification_settings(pal: dict) -> dict[str, object]:
 
 
 # ── generación del .reg ───────────────────────────────────────────────
+def tray_settings(pal: dict) -> dict[str, object]:
+    """Bandeja limpia: fuera red y volumen —siguen en Win+A, y el volumen en la
+    rueda (VOLUME_MOD)— y la campana mientras no haya avisos nuevos. Ojo: con
+    «whenInactive» tampoco se ve el «zz» de No molestar."""
+    t = pal["windowsDesktop"].get("tray", {})
+    # Todas las claves, como las escribe Windhawk al instalarlo: el .reg borra la
+    # subclave antes de reescribirla y no hay que fiarse de que «falta» = defecto.
+    out = {k: 0 for k in ("hideBatteryIcon", "grayscaleBatteryIcon", "hideMicrophoneIcon",
+                          "hideGeolocationIcon", "hideStudioEffectsIcon", "hideRecallIcon",
+                          "hideLanguageBar", "hideLanguageSupplementaryIcons")}
+    out.update({
+        "hideVolumeIcon": int(t.get("hideVolume", True)),
+        "hideNetworkIcon": int(t.get("hideNetwork", True)),
+        "hideBellIcon": t.get("hideBell", "whenInactive"),
+        "showDesktopButtonWidth": 12,
+    })
+    return out
+
+
+def volume_settings(pal: dict) -> dict[str, object]:
+    """La rueda sobre la barra sube y baja el volumen, con el indicador de
+    Windows 11. Paso de 2: el mínimo que admite ese indicador."""
+    return {
+        "volumeIndicator": "win11",
+        "scrollArea": "taskbar",
+        "additionalScrollRegions": "",
+        "middleClickToMute": 1,
+        "ctrlScrollVolumeChange": 0,
+        **{f"scrollAnywhereKeys.{k}": 0 for k in ("shift", "ctrl", "alt", "win")},
+        "fullScreenScrolling": "disabled",
+        "noAutomaticMuteToggle": 0,
+        "volumeChangeStep": 2,
+        "oldTaskbarOnWin11": 0,
+    }
+
+
 def _esc(v: str) -> str:
     return v.replace("\\", "\\\\").replace('"', '\\"')
 

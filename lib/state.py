@@ -6,9 +6,11 @@ Ese primer apunte manda — reinstalar mil veces no lo pisa — así que
 `--uninstall` siempre devuelve la máquina a como estaba antes de conocer este
 repo, no a como estaba en la penúltima instalación.
 
-Se guardan dos cosas:
+Se guardan:
   · ficheros  → copia íntegra, o la marca «no existía» para borrarlo al deshacer
   · valores de registro → clave, nombre, tipo y dato, o «no existía»
+  · la imagen de la pantalla de bloqueo, que no es ni lo uno ni lo otro: la
+    vuelca y la devuelve wallpaper.py con la API de Windows
 """
 from __future__ import annotations
 import hashlib, json, pathlib, re, shutil, subprocess
@@ -38,6 +40,8 @@ class Snapshot:
             return ("file", e["path"])
         if e["kind"] == "regkey":
             return ("regkey", e["key"].upper())
+        if e["kind"] == "lockscreen":
+            return ("lockscreen",)
         return ("reg", e["key"].upper(), e["name"].upper())
 
     def _add(self, entry: dict):
@@ -94,6 +98,15 @@ class Snapshot:
             entry["type"], entry["data"] = cur
         self._add(entry)
 
+    def wants_lockscreen(self) -> bool:
+        """¿Falta por guardar la imagen de bloqueo original? La vuelca
+        wallpaper.save_lock; aquí solo se apunta, porque no es un fichero ni un
+        valor que esta clase sepa leer."""
+        return ("lockscreen",) not in self._seen
+
+    def capture_lockscreen(self, backup: str) -> None:
+        self._add({"kind": "lockscreen", "backup": backup})
+
     # ── restauración ──────────────────────────────────────────────────
     def restore(self, say=print) -> tuple[int, int, list[dict]]:
         """Devuelve (restaurados, fallidos, pendientes_de_elevacion)."""
@@ -115,10 +128,21 @@ class Snapshot:
                 elif p.exists():
                     say(f"  borro {p} (no existía antes)")
                     if not self.dry:
-                        p.unlink()
+                        # Una fuente cargada está bloqueada por Windows mientras
+                        # la sesión viva. Que eso no tumbe el resto de la vuelta
+                        # atrás: se dice y se sigue.
+                        try:
+                            p.unlink()
+                        except OSError as e:
+                            say(f"  ! no pude borrar {p.name} ({e.strerror}); "
+                                "¿en uso? cierra sesión y bórralo a mano")
+                            bad += 1
+                            continue
                 ok += 1
             elif e["kind"] == "regkey":
                 needs_admin.append(e)          # exportación completa: se hace con UAC
+            elif e["kind"] == "lockscreen":
+                continue                       # va por la API de Windows: wallpaper.restore
             else:
                 if e["key"].upper().startswith("HKLM"):
                     needs_admin.append(e)

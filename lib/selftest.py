@@ -34,6 +34,14 @@ PROBE = r"""
 # resetea las opciones de compatibilidad, y AUTO_CD es una de ellas — la sonda
 # decía «off» mientras el shell real la tenía en «on». Un test que normaliza el
 # entorno no puede medir el entorno.
+#
+# Lo que SÍ se apaga, y solo para esta shell: el listado al entrar en un
+# directorio —ensuciaría el bloque de `ls` de abajo; se mide aparte—, el apunte
+# de zoxide —metería los directorios de juguete en tu historial de saltos— y el
+# fichero que lee la barra de Windows, que enseñaría la rama del repo de prueba.
+CC_CD_LS_LINES=0
+chpwd_functions=(${chpwd_functions:#__zoxide_hook})
+_claude_repo_file=${TMPDIR:-/tmp}/claude-selftest-repo
 print "histsize=$HISTSIZE"
 print "savehist=$SAVEHIST"
 for o in share_history hist_ignore_all_dups hist_ignore_space hist_verify \
@@ -55,6 +63,12 @@ print "git_pager=${GIT_PAGER%% *}"
 print "nerd_glyphs=$CC_NERD_GLYPHS"
 print "eza_colors=${EZA_COLORS:+set}"
 print "z_is=$(whence -w z 2>/dev/null)"
+print "cdpath=$cdpath"
+print "named_p=${nameddirs[p]}"
+print "ftb_loaded=${+functions[fzf-tab-complete]}"
+print "tab_viins=${$(bindkey -M viins '^I')##* }"
+zstyle -s ':completion:*' menu _ccv; print "compl_menu=$_ccv"
+print "chpwd_ls=${chpwd_functions[(Ie)_claude_cd_ls]}"
 # ── modo vim y la tira de atajos ──
 print "vi_main=$(bindkey -lL main)"
 print "keytimeout=$KEYTIMEOUT"
@@ -104,6 +118,34 @@ print "LS_CONTROL_BEGIN"
 (cd $_cct && ${commands[eza]:-true} --icons=always 2>/dev/null)
 print "LS_CONTROL_END"
 rm -rf $_cct
+# ── Alt+↑ ← →: la lógica, sin ZLE ──
+# Los widgets no se pueden disparar desde un script, pero lo que hacen vive en
+# `_claude_nav`, que es una función normal. Ida, vuelta, adelante, y que un cd
+# cualquiera olvide el adelante.
+_ccn=${TMPDIR:-/tmp}/claude-selftest-nav
+rm -rf $_ccn; mkdir -p $_ccn/a/b
+cd $_ccn/a/b
+_claude_nav up;      print "nav_up=${PWD#$_ccn}"
+_claude_nav back;    print "nav_back=${PWD#$_ccn}"
+_claude_nav forward; print "nav_forward=${PWD#$_ccn}"
+_claude_nav back; cd $_ccn/a
+_claude_nav forward; print "nav_forgot=$?"
+# ── la ruta del prompt dentro de un repo ──
+if (( $+commands[git] )); then
+  mkdir -p $_ccn/mi-repo/uno/dos/tres/cuatro
+  command git -C $_ccn/mi-repo init -q 2>/dev/null
+  cd $_ccn/mi-repo/uno;               _claude_repo_track; print "cwd_repo=$_claude_cwd"
+  cd $_ccn/mi-repo/uno/dos/tres/cuatro; _claude_repo_track; print "cwd_deep=$_claude_cwd"
+  cd $_ccn;                           _claude_repo_track; print "cwd_plain=$_claude_cwd"
+fi
+# ── el listado al entrar, con su tope ──
+mkdir -p $_ccn/lsdir; : > $_ccn/lsdir/f{01..30}
+COLUMNS=20 CC_CD_LS_LINES=5
+print "CDLS_BEGIN"
+cd $_ccn/lsdir
+print "CDLS_END"
+CC_CD_LS_LINES=0; COLUMNS=80
+cd /; rm -rf $_ccn
 """
 
 
@@ -119,7 +161,12 @@ FALLBACK_OF = {"visual": "vicmd", "viopp": "vicmd"}
 # Lo que el chuletario escribe para que lo lea un humano, traducido a lo que
 # entiende `bindkey`. Sin esto, «Alt+c» se preguntaba tal cual —no existe— y
 # pasaba por el respaldo del primer carácter, o sea sin comprobar nada.
-TOK_ALIAS = {"Esc": "<ESC>", "Alt+c": "<ALTC>"}
+#
+# Las flechas con Alt van en la notación de `bindkey` y no con un marcador: la
+# entiende tal cual, y al empezar por ^ el test ya no las deja pasar por el
+# respaldo del primer carácter.
+TOK_ALIAS = {"Esc": "<ESC>", "Alt+c": "<ALTC>", "Tab": "^I",
+             "Alt+↑": "^[[1;3A", "Alt+←": "^[[1;3D", "Alt+→": "^[[1;3C"}
 
 # Las teclas donde el chuletario dice algo CONCRETO y donde equivocarse no da
 # ningún error visible: la tecla responde, solo que hace otra cosa.
@@ -140,6 +187,9 @@ SEMANTICA = {
     ("viins", "^e"): "end-of-line",
     ("viins", "^w"): "backward-kill-word",
     ("viins", "^x^e"): "edit-command-line",
+    ("viins", "^[[1;3A"): "_claude_cd_up",
+    ("viins", "^[[1;3D"): "_claude_cd_back",
+    ("viins", "^[[1;3C"): "_claude_cd_forward",
     ("viopp", "iw"): "select-in-word",
     ("viopp", 'i"'): "select-quoted",
     ("viopp", "i("): "select-bracketed",
@@ -318,6 +368,8 @@ def check_shell(r: Report, pal: dict) -> str:
     else:
         r.skip("zoxide", "no instalado")
 
+    check_navigation(r, f, out)
+
     # ── los iconos: el fallo que motivó todo esto ──
     want_icons = "always" if pal["font"].get("nerdGlyphs") else "never"
     if shutil.which("eza"):
@@ -340,6 +392,70 @@ def check_shell(r: Report, pal: dict) -> str:
     else:
         r.skip("iconos de eza", "eza no instalado")
     return out
+
+
+def check_navigation(r: Report, f: dict[str, str], out: str) -> None:
+    """cdpath, Alt+flechas, fzf-tab, la ruta del prompt y el listado al entrar."""
+    home = pathlib.Path.home()
+    proj = next((d for d in ("projects", "proyectos", "src", "code")
+                 if (home / d).is_dir()), None)
+    if proj:
+        r.check(f"cdpath y ~p apuntan a ~/{proj}",
+                f.get("cdpath") == str(home / proj) and f.get("named_p") == str(home / proj),
+                f"cdpath={f.get('cdpath')} ~p={f.get('named_p')}")
+    else:
+        r.skip("cdpath y ~p", "no hay carpeta de proyectos")
+
+    r.check("Alt+↑ sube", f.get("nav_up") == "/a", f.get("nav_up", "?"))
+    r.check("Alt+← vuelve", f.get("nav_back") == "/a/b", f.get("nav_back", "?"))
+    r.check("Alt+→ deshace el volver", f.get("nav_forward") == "/a", f.get("nav_forward", "?"))
+    # rc 1: no había adónde ir. Si fuera 0, un cd normal no habría borrado el
+    # adelante y Alt+→ te llevaría a un sitio que ya no tiene sentido.
+    r.check("un cd normal olvida el adelante", f.get("nav_forgot") == "1",
+            f"rc={f.get('nav_forgot')}")
+
+    custom = pathlib.Path(os.environ.get("ZSH_CUSTOM")
+                          or pathlib.Path(os.environ.get("ZSH") or home / ".oh-my-zsh") / "custom")
+    if (custom / "plugins/fzf-tab").is_dir():
+        r.check("fzf-tab cargado", f.get("ftb_loaded") == "1",
+                "el plugin está pero no se carga: ¿falta en plugins=( ) del .zshrc?")
+        r.check("Tab lo coge fzf-tab (viins)", f.get("tab_viins") == "fzf-tab-complete",
+                f"es «{f.get('tab_viins')}»")
+        # Con `menu select` zsh abre su menú antes y fzf-tab no ve el prefijo.
+        r.check("el menú de zsh no se adelanta", f.get("compl_menu") == "no",
+                f"menu={f.get('compl_menu')}")
+    else:
+        r.skip("fzf-tab", "no instalado")
+
+    if shutil.which("git"):
+        # %B…%b es el nombre del repo en negrita; el … aparece a partir de 4 tramos.
+        r.check("prompt: ruta relativa al repo",
+                f.get("cwd_repo") == "%Bmi-repo%b/uno", f.get("cwd_repo", "?"))
+        deep = f.get("cwd_deep", "")
+        r.check("prompt: tramos de más resumidos",
+                deep.startswith("%Bmi-repo%b/") and "…" in deep and deep.endswith("tres/cuatro"),
+                deep)
+        r.check("prompt: fuera de un repo, como siempre",
+                "%~" in f.get("cwd_plain", ""), f.get("cwd_plain", "?"))
+    else:
+        r.skip("ruta relativa al repo", "git no instalado")
+
+    if shutil.which("eza"):
+        clean = clean_pty(out)
+        block = clean.split("CDLS_BEGIN", 1)[-1].split("CDLS_END", 1)[0] if "CDLS_BEGIN" in clean else ""
+        r.check("al entrar se lista el directorio", f.get("chpwd_ls", "0") != "0" and "f01" in block,
+                "no salió nada" if "f01" not in block else "el gancho no está en chpwd")
+        # Sin contar columnas: eza reparte en rejilla y cuántas caben depende de
+        # su versión. Lo que importa es que haya resumen, que f30 —la última— no
+        # salga y que no pase del tope. Lo primero que se escribió aquí esperaba
+        # una columna y falló con el listado bien cortado.
+        filas = [ln for ln in block.strip().split("\n") if ln.strip()]
+        r.check("y con tope de filas",
+                re.search(r"… \d+ filas más", block) is not None and "f30" not in block
+                and len(filas) <= 5 + 1,
+                f"{len(filas)} filas: " + " | ".join(filas)[:60])
+    else:
+        r.skip("listado al entrar", "eza no instalado")
 
 
 def check_keys(r: Report, pal: dict, out: str) -> None:
@@ -605,6 +721,10 @@ def check_delta(r: Report, pal: dict) -> None:
     out, _ = zsh_under_pty('eval "${GIT_PAGER} --show-config" 2>/dev/null\n')
     clean = re.sub(r"\x1b][0-9];[^\x07\x1b]*(\x07|\x1b\\)", "", out)
     clean = re.sub(r"\x1b\[[0-9;]*m", "", clean)
+    # La shell bajo pty elige paleta igual que una de verdad: oscura en VS Code,
+    # la de terminalMode en el resto. Se espera la que le toca.
+    if os.environ.get("TERM_PROGRAM") != "vscode":
+        pal = render.terminal(pal)
     teal = pal["roles"]["teal"]["hex"].lower()
     plus = pal["surfaces"]["diffPlus"].lower()
     minus = pal["surfaces"]["diffMinus"].lower()
@@ -637,6 +757,164 @@ def check_render(r: Report, pal: dict) -> None:
             pal["ansi"]["cyan"].lower() == teal.lower(),
             f"{pal['ansi']['cyan']} vs {teal}")
     r.check("font.nerdGlyphs declarado", "nerdGlyphs" in pal["font"])
+    check_light(r, pal)
+
+
+def _contrast(a: str, b: str) -> float:
+    """Contraste WCAG 2.x entre dos #RRGGBB."""
+    def lum(h: str) -> float:
+        c = [x / 255 for x in render.rgb(h)]
+        c = [x / 12.92 if x <= 0.03928 else ((x + 0.055) / 1.055) ** 2.4 for x in c]
+        return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+    hi, lo = sorted((lum(a), lum(b)), reverse=True)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+def light_backgrounds(pal: dict) -> dict[str, str]:
+    """Cada fondo OPACO que el modo claro pinta, sacado de lo que se genera de
+    verdad —ajustes de Windhawk, XAML de Flow, la banda de AHK, el tema de
+    Windows Terminal— y no de la paleta, que podría decir una cosa mientras
+    un generador pinta otra. {dónde: #RRGGBB}"""
+    import windhawk, flow
+    d = render.desktop(dict(pal, windowsMode="light"))
+    t = render.terminal(dict(pal, terminalMode="light"))
+    out: dict[str, str] = {}
+    # Lo que NO es fondo aunque vaya en Background/Fill: líneas, indicadores y
+    # el subrayado de las pestañas. Esos van en LÍNEA o en acento.
+    lines = ("Stroke", "BorderLine", "RunningIndicator")
+    for name in ("taskbar_settings", "start_settings", "notification_settings", "explorer_settings"):
+        st = getattr(windhawk, name)(d)
+        for k, v in st.items():
+            if not isinstance(v, str):
+                continue
+            m = re.search(r'(CommonBgBrush|Background|Fill)[^=]*:?=<SolidColorBrush Color="#FF([0-9A-F]{6})"', v)
+            if not m:
+                continue
+            tgt = st.get(k.split(".styles[")[0] + ".target", k)
+            if not any(x in tgt for x in lines):
+                out[f"{name.split('_')[0]}:{tgt.split(' > ')[-1][:40]}"] = "#" + m.group(2)
+    x = flow.theme_xaml(d)
+    out["flow:ventana"] = re.search(r'Property="Background" Value="(#[0-9A-Fa-f]{6})"', x).group(1)
+    out["ahk:banda"] = "#" + render.ahk_substitutions(d)["BG"]
+    out["iconos:fondo"] = d["surfaces"]["bgAlt"]
+    wt = render.wt_theme(t)
+    for part in ("tab", "tabRow"):
+        for k in ("background", "unfocusedBackground"):
+            out[f"wt:{part}.{k}"] = wt[part][k]
+    out["wt:terminal"] = render.wt_scheme(t)["background"]
+    out["zsh:CC_BG_DARK"] = t["surfaces"]["bgAlt"]
+    return {k: v.upper() for k, v in out.items()}
+
+
+def check_two_tones(r: Report, pal: dict) -> None:
+    """El fallo que motivó las dos últimas versiones del claro: primero siete
+    blancos, unos azulados y otros neutros; después el terminal en blanco y su
+    statusline en la base, con la franja de abajo como una zona aparte. Ahora el
+    fondo es UNO, la base, en todo lo que pintamos. La única excepción es el
+    contenido del Explorador, que va al blanco de su lista Win32 porque esa no
+    se deja pintar."""
+    s = render.terminal(dict(pal, terminalMode="light"))["surfaces"]
+    base = s["bgAlt"].upper()
+    ex = render.desktop(dict(pal, windowsMode="light"))["windowsDesktop"]["explorer"]["surfaces"]
+    win32 = {ex.get(k, base).upper() for k in ("canvas", "field")}
+    bg = light_backgrounds(pal)
+    extra = {k: v for k, v in bg.items()
+             if v != base and not (k.startswith("explorer:") and v in win32)}
+    r.check(f"claro: un solo fondo ({base}, y el Win32 del Explorador)",
+            not extra and s["bg"].upper() == base,
+            "; ".join(f"{k}={v}" for k, v in list(extra.items())[:3]) or f"terminal {s['bg']}")
+
+
+def check_light(r: Report, pal: dict) -> None:
+    """La variante clara existe porque los roles oscuros son pasteles y sobre
+    blanco no se leen. Esto es lo que no puede volver a pasar. Se mide SIEMPRE,
+    esté puesto el modo que esté: quien edite el bloque `light` con todo en
+    oscuro tiene que enterarse igual."""
+    if "light" not in pal:
+        r.skip("modo claro", "palette.json no define el bloque light")
+        return
+    for key in ("windowsMode", "terminalMode"):
+        r.check(f"{key} es light o dark", pal.get(key, "dark") in ("light", "dark"),
+                str(pal.get(key)))
+    d = render.terminal(dict(pal, terminalMode="light"))
+    s = d["surfaces"]
+    inks = {"fg": s["fg"], "fgDim": s["fgDim"],
+            **{k: v["hex"] for k, v in d["roles"].items()},
+            **{f"{k}.bright": v["bright"] for k, v in d["roles"].items()}}
+    bad = [f"{k} {v} {_contrast(v, bg):.2f} sobre {bgk}"
+           for k, v in inks.items() for bgk, bg in (("bg", s["bg"]), ("bgAlt", s["bgAlt"]))
+           if _contrast(v, bg) < 4.5]
+    r.check("claro: texto >= 4.5:1 sobre bg y bgAlt", not bad, "; ".join(bad[:3]))
+    bad = [f"{k} {v} {_contrast(v, s['bg']):.2f}" for k, v in d["ansi"].items()
+           if _contrast(v, s["bg"]) < 4.5]
+    r.check("claro: los 16 ANSI >= 4.5:1", not bad, "; ".join(bad[:3]))
+    r.check("claro: ansi.cyan == roles.teal", d["ansi"]["cyan"].lower() == d["roles"]["teal"]["hex"].lower(),
+            f"{d['ansi']['cyan']} vs {d['roles']['teal']['hex']}")
+    base = render.desktop(dict(pal, windowsMode="light"))["windowsAccent"]["base"]
+    r.check("claro: borde activo >= 3:1 sobre blanco", _contrast(base, s["bg"]) >= 3,
+            f"{base} {_contrast(base, s['bg']):.2f}")
+    # VS Code se queda oscuro, y zsh es el mismo dentro que fuera: la paleta de
+    # zsh tiene que llevar las dos ramas, y la de VS Code ser la oscura.
+    z = render.palette_zsh(dict(pal, terminalMode="light"))
+    vs = z.split("then", 1)[-1].split("else", 1)[0]
+    r.check("claro: zsh en VS Code sigue oscuro",
+            "TERM_PROGRAM == vscode" in z and f"CC_HEX_BG='{pal['surfaces']['bg']}'" in vs
+            and f"CC_HEX_BG='{s['bg']}'" in z.split("else", 1)[-1])
+    check_two_tones(r, pal)
+    # Los colores de las insignias de modo (NORMAL, INSERT…) tienen que seguir a
+    # la paleta del terminal y no llevar el hex escrito: así salió el NORMAL en el
+    # morado pastel del oscuro sobre el fondo claro.
+    km = [ln for ln in render.keymap_zsh(pal).splitlines() if "_ROLE=" in ln]
+    r.check("claro: las insignias de modo siguen a la paleta",
+            bool(km) and all('="${CC_HEX_' in ln for ln in km),
+            next((ln for ln in km if '="${CC_HEX_' not in ln), "sin _ROLE")[:60])
+    # El tema de Claude Code sale de esta paleta (render.claude_theme). Si el
+    # instalado no coincide, alguien lo editó a mano o no se regeneró, y el
+    # terminal y Claude Code vuelven a tener cada uno sus colores.
+    cc = pathlib.Path(os.environ.get("CLAUDE_CONFIG_DIR") or pathlib.Path.home() / ".claude") / "themes/terminal-light.json"
+    if cc.exists():
+        r.check("claro: tema de Claude Code == generado", json.loads(cc.read_text()) == render.claude_theme(pal),
+                "lib/render.py claude-theme > " + str(cc))
+    else:
+        r.skip("claro: tema de Claude Code", f"no está instalado en {cc}")
+    if shutil.which("zsh"):
+        tmp = pathlib.Path(os.environ.get("TMPDIR", "/tmp")) / "claude-selftest-palette.zsh"
+        tmp.write_text(z, encoding="utf-8")
+        p = subprocess.run(["zsh", "-n", str(tmp)], capture_output=True, text=True)
+        tmp.unlink(missing_ok=True)
+        r.check("claro: la paleta de zsh es zsh válido", p.returncode == 0, p.stderr.strip()[:60])
+    check_desktop_choices(r, pal)
+
+
+def check_desktop_choices(r: Report, pal: dict) -> None:
+    """Lo que el escritorio lee de la paleta sin ser color: un valor que no esté
+    en la lista para el instalador a medias, y un fondo que no existe no se pone."""
+    import desktop, wallpaper
+    wd = pal["windowsDesktop"]
+    r.check("escritorio: pinnedIcons es glyphs o stock",
+            wd.get("pinnedIcons", "glyphs") in ("glyphs", "stock"), str(wd.get("pinnedIcons")))
+    r.check("escritorio: taskbar.search es válido",
+            wd["taskbar"].get("search", "icon") in desktop.SEARCH_MODES, str(wd["taskbar"].get("search")))
+    # Los colores por estado de la barra van como recursos de tema: los
+    # selectores con estado del README del mod no casan en la build 26200 (ver
+    # HANDOFF). Si alguien los devuelve a controlStyles, vuelven a no pintar.
+    import windhawk
+    tb = windhawk.taskbar_settings(render.desktop(pal))
+    res = " ".join(str(v) for k, v in tb.items() if k.startswith("themeResourceVariables"))
+    r.check("barra: estados por recurso (indicador y botón activo)",
+            all(k in res for k in ("RunningIndicatorActiveBrush", "ShellTaskbarItemFillColorSecondaryBrush"))
+            and not any("TaskListLabeledButtonPanel" in str(v) for v in tb.values()), res[:60])
+    for mode in ("dark", "light"):
+        wp = render.desktop(dict(pal, windowsMode=mode))["windowsDesktop"].get("wallpaper")
+        if not wp:
+            continue
+        r.check(f"{mode}: wallpaper.style es válido", wp.get("style", "fill") in wallpaper.STYLES,
+                str(wp.get("style")))
+        if not pathlib.Path("/mnt/c").is_dir():
+            r.skip(f"{mode}: el fondo existe", "sin /mnt/c")
+            continue
+        unix = subprocess.run(["wslpath", "-u", wp["image"]], capture_output=True, text=True).stdout.strip()
+        r.check(f"{mode}: el fondo existe", bool(unix) and pathlib.Path(unix).is_file(), wp["image"])
 
 
 def main() -> int:

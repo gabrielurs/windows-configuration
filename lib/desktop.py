@@ -3,9 +3,9 @@
 de Windhawk.
 
 Sigue el diseño «Tema Windows Claude CLI»: barra de ancho completo, centrada,
-SIEMPRE VISIBLE (nada de autohide), búsqueda reducida a icono, sin widgets ni
-vista de tareas, y nunca combinar botones. La forma — esquinas redondeadas
-arriba y los colores — la pone Windhawk, porque eso Windows no lo expone.
+SIEMPRE VISIBLE (nada de autohide), sin botón de búsqueda (busca Flow), sin widgets ni
+vista de tareas, y nunca combinar botones. La forma y los colores los pone
+Windhawk, porque eso Windows no lo expone.
 """
 from __future__ import annotations
 import pathlib, subprocess, sys
@@ -31,7 +31,6 @@ TASKBAR = [
     (ADVANCED, "ShowTaskViewButton",   "REG_DWORD", "0", "sin vista de tareas"),
     (ADVANCED, "TaskbarDa",            "REG_DWORD", "0", "sin widgets"),
     (ADVANCED, "TaskbarMn",            "REG_DWORD", "0", "sin chat"),
-    (SEARCH,   "SearchboxTaskbarMode", "REG_DWORD", "1", "búsqueda reducida a icono"),
     # v2, sección 11: «sin transparencia». Con cristal, el #0A0D0F de la barra
     # se mezcla con lo que haya debajo y deja de ser el color del tema.
     (PERSONALIZE, "EnableTransparency", "REG_DWORD", "0", "sin transparencia"),
@@ -40,6 +39,14 @@ TASKBAR = [
     (POL_EXPLORER, "DisableSearchBoxSuggestions", "REG_DWORD", "1",
      "búsqueda sin resultados web"),
 ]
+
+# El botón de búsqueda. La lupa de Windows es bicolor y no se recolorea, y la
+# búsqueda ya la hace Flow en Ctrl+Space: por eso el tema la quita.
+SEARCH_MODES = {
+    "hidden": ("0", "sin botón de búsqueda: busca Flow con Ctrl+Space"),
+    "icon":   ("1", "búsqueda reducida a icono"),
+    "box":    ("2", "caja de búsqueda"),
+}
 
 # Combinar botones. El diseño pide «nunca combinar», que en Windows implica
 # etiqueta al lado de cada icono — y con diez ventanas abiertas eso son diez
@@ -104,7 +111,11 @@ def apply_taskbar(snap: state.Snapshot, ctx, pal: dict,
     if mode not in GLOM:
         raise SystemExit(f"combineButtons: «{mode}» no vale; usa {sorted(GLOM)}")
     glom, glom_why = GLOM[mode]
+    search = pal["windowsDesktop"]["taskbar"].get("search", "icon")
+    if search not in SEARCH_MODES:
+        raise SystemExit(f"taskbar.search: «{search}» no vale; usa {sorted(SEARCH_MODES)}")
     values = TASKBAR + [
+        (SEARCH, "SearchboxTaskbarMode", "REG_DWORD", *SEARCH_MODES[search]),
         (ADVANCED, "TaskbarGlomLevel",   "REG_DWORD", glom, glom_why),
         (ADVANCED, "MMTaskbarGlomLevel", "REG_DWORD", glom, "ídem en pantallas secundarias"),
     ] + EXPLORER + START
@@ -188,17 +199,88 @@ def apply_context_menu(snap: state.Snapshot, ctx, remove: bool = False) -> bool:
 PINNED = ("Microsoft/Internet Explorer/Quick Launch/User Pinned/TaskBar")
 
 
-def apply_pinned_icons(pal: dict, snap: state.Snapshot, ctx, win_home, remove: bool = False) -> bool:
-    """Reviste los accesos directos anclados con los glifos de la paleta.
+def _win(path) -> str:
+    return subprocess.run(["wslpath", "-w", str(path)],
+                          capture_output=True, text=True).stdout.strip()
 
-    Solo llega hasta aquí: el icono de un acceso directo es nuestro, pero el de
-    una app en ejecución que no esté anclada lo pone la propia app y no hay por
-    dónde cogerlo. El diseño dibuja cinco glifos; se aplican a los que estén
-    anclados de verdad.
+
+def _ps_quote(s: str) -> str:
+    return "'" + s.replace("'", "''") + "'"
+
+
+def apply_pinned_icons(pal: dict, snap: state.Snapshot, ctx, win_home, remove: bool = False) -> bool:
+    """Los iconos de los accesos directos anclados, según `pinnedIcons`.
+
+    `glyphs` los reviste con los glifos de la paleta. Solo llega hasta ahí: el
+    icono de un acceso directo es nuestro, pero el de una app en ejecución que no
+    esté anclada lo pone la propia app y no hay por dónde cogerlo. `stock` les
+    devuelve el icono que tenían, que es lo que pide la paleta desde que se vio
+    que la barra quedaba siempre mitad glifo, mitad icono de serie.
     """
     if remove or not win_home:
         return False
-    print("· iconos de los anclados")
+    mode = pal["windowsDesktop"].get("pinnedIcons", "glyphs")
+    if mode not in ("glyphs", "stock"):
+        raise SystemExit(f"pinnedIcons: «{mode}» no vale; usa glyphs o stock")
+    print("· iconos de los anclados" + (" (de serie)" if mode == "stock" else ""))
+    pinned_dir = win_home / "AppData/Roaming" / PINNED
+    if not pinned_dir.is_dir():
+        ctx.say("no encuentro la carpeta de anclados")
+        return False
+    icon_dir = win_home / "AppData/Local/claude-terminal-theme/icons"
+
+    changed = (_stock_icons(pinned_dir, icon_dir, snap, ctx) if mode == "stock"
+               else _glyph_icons(pal, pinned_dir, icon_dir, snap, ctx))
+    if changed and not ctx.dry:
+        # sin esto Windows sigue enseñando el icono viejo desde su caché
+        subprocess.run(["ie4uinit.exe", "-show"], capture_output=True, cwd="/mnt/c")
+    if changed and mode == "stock":
+        # Medido: con eso no basta para una app abierta y agrupada con su anclado.
+        ctx.say("si alguna app abierta sigue con el glifo: para explorer y borra "
+                "%LOCALAPPDATA%\\Microsoft\\Windows\\Explorer\\iconcache_*.db (HANDOFF)")
+    return changed
+
+
+def _stock_icons(pinned_dir, icon_dir, snap: state.Snapshot, ctx) -> bool:
+    """Devuelve a cada anclado con glifo el IconLocation que tenía.
+
+    Solo el IconLocation, leído de la copia del snapshot: restaurar el .lnk
+    entero pisaría lo que haya cambiado en el acceso directo desde entonces. Y
+    solo en los que apuntan a un glifo nuestro; el resto no es asunto de esto.
+    Sin copia en el snapshot queda «,0», que es el icono del propio destino.
+    """
+    ours = _win(icon_dir)
+    if not icon_dir.is_dir() or not ours:
+        ctx.say("no hay glifos nuestros que quitar")   # máquina que nunca los tuvo
+        return False
+    backups = {e["path"]: state.FILES / e["backup"] for e in snap.entries
+               if e["kind"] == "file" and e.get("existed") and "backup" in e}
+    changed = False
+    for lnk in sorted(pinned_dir.glob("*.lnk")):
+        orig = backups.get(str(lnk))
+        src = (f"$s.CreateShortcut({_ps_quote(_win(orig))}).IconLocation"
+               if orig and orig.exists() else "',0'")
+        # Stop: sin él, un Save() que falla deja seguir al 'set' y se da por hecho
+        ps = (f"$ErrorActionPreference='Stop';$s=New-Object -ComObject WScript.Shell;"
+              f"$l=$s.CreateShortcut({_ps_quote(_win(lnk))});"
+              f"if ($l.IconLocation -notlike {_ps_quote(ours + '*')}) {{ 'keep' }}"
+              f"else {{ $o={src};"
+              + ("" if ctx.dry else "$l.IconLocation=$o;$l.Save();")
+              + " 'set ' + $o }")
+        r = subprocess.run(["powershell.exe", "-NoProfile", "-Command", ps],
+                           capture_output=True, cwd="/mnt/c")
+        out = r.stdout.decode("cp850", "replace").strip()
+        if r.returncode != 0 or not out:
+            ctx.say(f"  ! {lnk.stem}: " + r.stderr.decode("cp850", "replace").strip()[:120])
+        elif out == "keep":
+            ctx.say(f"{lnk.stem}: ya lleva su icono")
+        else:
+            ctx.say(f"{lnk.stem} → icono de serie ({out[4:]})")
+            changed = True
+    return changed
+
+
+def _glyph_icons(pal: dict, pinned_dir, icon_dir, snap: state.Snapshot, ctx) -> bool:
     try:
         import PIL  # noqa: F401
     except ImportError:
@@ -206,12 +288,6 @@ def apply_pinned_icons(pal: dict, snap: state.Snapshot, ctx, win_home, remove: b
         return False
 
     import icons
-    pinned_dir = win_home / "AppData/Roaming" / PINNED
-    if not pinned_dir.is_dir():
-        ctx.say("no encuentro la carpeta de anclados")
-        return False
-
-    icon_dir = win_home / "AppData/Local/claude-terminal-theme/icons"
     if not ctx.dry:
         icons.build_all(pal, icon_dir)
 
@@ -229,21 +305,13 @@ def apply_pinned_icons(pal: dict, snap: state.Snapshot, ctx, win_home, remove: b
         changed = True
         if ctx.dry:
             continue
-        win_ico = subprocess.run(["wslpath", "-w", str(ico)],
-                                 capture_output=True, text=True).stdout.strip()
-        win_lnk = subprocess.run(["wslpath", "-w", str(lnk)],
-                                 capture_output=True, text=True).stdout.strip()
         ps = (f"$s=New-Object -ComObject WScript.Shell;"
-              f"$l=$s.CreateShortcut('{win_lnk}');"
-              f"$l.IconLocation='{win_ico},0';$l.Save()")
+              f"$l=$s.CreateShortcut({_ps_quote(_win(lnk))});"
+              f"$l.IconLocation={_ps_quote(_win(ico) + ',0')};$l.Save()")
         r = subprocess.run(["powershell.exe", "-NoProfile", "-Command", ps],
                            capture_output=True, cwd="/mnt/c")
         if r.returncode != 0:
             ctx.say("  ! " + r.stderr.decode("cp850", "replace").strip()[:120])
-
-    if changed and not ctx.dry:
-        # sin esto Windows sigue enseñando el icono viejo desde su caché
-        subprocess.run(["ie4uinit.exe", "-show"], capture_output=True, cwd="/mnt/c")
     return changed
 
 
@@ -265,10 +333,18 @@ def broadcast_colorchange(ctx) -> None:
         'using System;using System.Runtime.InteropServices;\n'
         'public class B{[DllImport("user32.dll")] public static extern IntPtr '
         'SendMessageTimeout(IntPtr h,uint m,IntPtr w,IntPtr l,uint f,uint t,out IntPtr r);}\n'
+        'public class C{[DllImport("user32.dll",CharSet=CharSet.Unicode)] public static extern IntPtr '
+        'SendMessageTimeout(IntPtr h,uint m,IntPtr w,string l,uint f,uint t,out IntPtr r);}\n'
         '"@\n'
         '$r=[IntPtr]::Zero\n'
         '[void][B]::SendMessageTimeout([IntPtr]0xffff,0x0320,[IntPtr]::Zero,'
         '[IntPtr]::Zero,2,4000,[ref]$r)\n'
+        # El modo claro/oscuro de las apps (AppsUseLightTheme) se relee con
+        # WM_SETTINGCHANGE + «ImmersiveColorSet», que es lo que manda la propia
+        # Configuración al cambiarlo. Sin medir en caliente: cuando se escribió,
+        # Windows ya estaba en claro y no había cambio que observar.
+        '[void][C]::SendMessageTimeout([IntPtr]0xffff,0x001A,[IntPtr]::Zero,'
+        '"ImmersiveColorSet",2,4000,[ref]$r)\n'
     )
     r = subprocess.run(["powershell.exe", "-NoProfile", "-Command", ps],
                        capture_output=True, cwd="/mnt/c")
@@ -277,7 +353,7 @@ def broadcast_colorchange(ctx) -> None:
 
 
 def apply_windhawk(pal: dict, snap: state.Snapshot, ctx, win_home, remove: bool = False) -> bool:
-    print("· Windhawk (barra, Inicio, reloj, Explorador y notificaciones)")
+    print("· Windhawk (barra, bandeja, Inicio, reloj, Explorador y notificaciones)")
     if not pathlib.Path("/mnt/c/Program Files/Windhawk").is_dir():
         ctx.say("Windhawk no está instalado, salto")
         return False
@@ -285,7 +361,7 @@ def apply_windhawk(pal: dict, snap: state.Snapshot, ctx, win_home, remove: bool 
     wanted = (windhawk.TASKBAR_MOD, windhawk.ICONSIZE_MOD, windhawk.START_MOD,
               windhawk.STARTPOS_MOD, windhawk.STARTICON_MOD, windhawk.BORDER_MOD,
               windhawk.CLOCK_MOD, windhawk.EXPLORER_MOD, windhawk.COLUMNS_MOD,
-              windhawk.NOTIF_MOD)
+              windhawk.NOTIF_MOD, windhawk.TRAY_MOD, windhawk.VOLUME_MOD)
     # El manifiesto y el código no pueden divergir en silencio: si añades un mod
     # aquí y olvidas su ficha, el que instale esto en otra máquina se queda sin
     # saber cómo se llama en el buscador.
@@ -338,6 +414,8 @@ def apply_windhawk(pal: dict, snap: state.Snapshot, ctx, win_home, remove: bool 
         windhawk.EXPLORER_MOD: windhawk.explorer_settings,
         windhawk.COLUMNS_MOD:  windhawk.columns_settings,
         windhawk.NOTIF_MOD:    windhawk.notification_settings,
+        windhawk.TRAY_MOD:     windhawk.tray_settings,
+        windhawk.VOLUME_MOD:   windhawk.volume_settings,
     }
     blocks = {m: builders[m](pal) for m in wanted}
     # el del reloj venía apagado; sin esto no se carga

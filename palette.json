@@ -1,6 +1,10 @@
 {
   "name": "Claude CLI",
   "description": "Paleta del tema Terminal de Claude Code, llevada a zsh, Windows Terminal, PowerShell, VS Code y el acento de Windows.",
+  "windowsMode": "light",
+  "_windowsModeNote": "light | dark. El ESCRITORIO: barra, Inicio, notificaciones, Explorador, Flow, la banda de AutoHotkey, los iconos anclados, el acento y el modo de apps de Windows (AppsUseLightTheme / SystemUsesLightTheme, que el instalador escribe a juego). En light, el bloque `light` se superpone a esta paleta (lib/render.py:desktop). Cambiar de modo desde Configuración de Windows NO basta: los mods de Windhawk llevan los colores escritos y seguirían en el modo anterior. Se cambia aquí y se relanza ./install.sh --windows.",
+  "terminalMode": "light",
+  "_terminalModeNote": "light | dark, independiente del escritorio. Windows Terminal (esquema y tema de ventana), PowerShell y zsh, con el mismo bloque `light` encima (lib/render.py:terminal). VS Code NO: su workbench es oscuro (Abyss) y su terminal se queda con la paleta oscura; y como zsh es el mismo dentro y fuera, claude-00-palette.zsh lleva las dos y elige por TERM_PROGRAM=vscode al arrancar. Una shell ya abierta no cambia: `exec zsh`. El tema de Claude Code va aparte, en su settings.json (custom:terminal o custom:terminal-light).",
   "surfaces": {
     "bg": "#07090A",
     "bgAlt": "#0A0D0F",
@@ -96,10 +100,18 @@
     "_inactiveNote": "Borde de la ventana INACTIVA, para win11-accent-border. Separado de `start` a proposito: si el inactivo tambien es teal, todas las ventanas llevan borde teal y se pierde la senal de cual esta activa, que es justo lo que el diseno pide distinguir."
   },
   "font": {
-    "face": "Cascadia Code",
+    "face": "Cascadia Code NF",
     "sizeTerminal": 11,
     "sizeVSCode": 13,
-    "nerdGlyphs": false
+    "nerdGlyphs": true,
+    "nerdSource": {
+      "_comment": "De donde sale la fuente cuando nerdGlyphs va en true. La variante NF oficial de Microsoft: no esta en winget. Version FIJADA a proposito —el zip son 143 MB y no se quiere depender de la API de GitHub, que sin token corta a 60 llamadas por hora—; se cachea en ~/.cache/claude-terminal-theme. files: miembro del zip -> nombre del valor en HKCU\\...\\Fonts.",
+      "url": "https://github.com/microsoft/cascadia-code/releases/download/v2407.24/CascadiaCode-2407.24.zip",
+      "files": {
+        "ttf/CascadiaCodeNF.ttf": "Cascadia Code NF (TrueType)",
+        "ttf/CascadiaCodeNFItalic.ttf": "Cascadia Code NF Italic (TrueType)"
+      }
+    }
   },
   "keys": {
     "_comment": "Atajos estilo vim en las dos superficies: zsh (bindkey -v) y Windows (AutoHotkey). Aqui vive lo que se VE — el chuletario— y el interruptor. Las ATADURAS viven en el codigo (shell/claude-40-keys.zsh y windows/claude-keys.ahk.tmpl); el auto-test comprueba que lo que se ensena aqui esta realmente atado alli, que es la unica forma de que estas dos listas no deriven.",
@@ -152,6 +164,8 @@
             ["^r", "historial difuso"],
             ["^t", "buscar un fichero"],
             ["Alt+c", "saltar de directorio"],
+            ["Alt+↑ Alt+← Alt+→", "subir / atras / adelante"],
+            ["Tab", "completar en fzf  (< > cambia de grupo)"],
             ["^x^e", "abrir en $EDITOR"]
           ]
         },
@@ -256,14 +270,17 @@
   },
   "windowsDesktop": {
     "_comment": "Geometría del diseño «Tema Windows Claude CLI»: barra de ancho completo pegada abajo, esquinas redondeadas solo arriba, siempre visible.",
+    "pinnedIcons": "stock",
+    "_pinnedIconsNote": "stock | glyphs. Los glifos solo llegan a los anclados que estan en icons.APPS y que NO estan abiertos: una app abierta o sin anclar pone su propio icono. La barra quedaba siempre mitad glifo plano, mitad icono de color (medido el 2026-11-16: 2 glifos y 4 de serie). stock devuelve a cada anclado el icono que tenia, leido del snapshot.",
     "taskbar": {
-      "cornerRadius": 14,
+      "search": "hidden",
+      "_searchNote": "hidden | icon | box. La lupa de Windows es bicolor (#0078D3 y verde) y no se deja recolorear (HANDOFF); la busqueda la hace Flow en Ctrl+Space, asi que el boton sobra.",
+      "cornerRadius": 0,
       "buttonRadius": 10,
       "padding": "0,0,0,0",
       "activeAlpha": "21",
       "startAlpha": "1A",
-      "indicatorHeight": 3,
-      "_radiusNote": "v2 lo pide a 14. Ojo: el Rectangle redondea los CUATRO lados, y la barra va pegada abajo, asi que las esquinas inferiores dejan dos cunas sin pintar contra el borde de la pantalla. Verificado en captura; si te molestan mas que las de arriba, bajalo a 0.",
+      "_radiusNote": "v2 lo pedia a 14, y a 14 una barra de ancho completo deja en las dos esquinas de arriba un triangulo del fondo de pantalla (medido el 2026-11-16: #A1AAAF sobre el Bloom salvia). A 0, la barra nativa. Para esquinas redondeadas sin cunas la barra tendria que flotar, con margen a los bordes.",
       "_paddingNote": "A 0 a propósito: el Rectangle del fondo vive DENTRO del padding del RootGrid, así que cualquier padding lateral deja la barra sin pintar esos píxeles en los extremos — se ven como dos huecos.",
       "combineButtons": "always",
       "_combineNote": "El diseno pide «nunca combinar», pero en Windows eso significa etiqueta junto a cada icono: con diez ventanas abiertas son diez titulos truncados que se comen la barra. always = solo el icono. Valores: always | whenFull | never.",
@@ -348,6 +365,107 @@
       "hotkey": "Ctrl + Space",
       "font": "Cascadia Mono",
       "cornerRadius": 12
+    }
+  },
+  "light": {
+    "_comment": "La variante clara, una sola para el escritorio (windowsMode) y el terminal (terminalMode). Se superpone clave a clave sobre la paleta. UN SOLO TONO DE FONDO: #F3F3F3, el que Windows usa de base (SolidBackgroundFillColorBase, a lo que cae Mica con la transparencia apagada; su gemelo oscuro, #202020, es el que se midio en la franja del titulo del Explorador). Lo llevan el terminal, Claude Code y su statusline, la barra, Inicio, notificaciones, Flow, Alt+Tab, la banda de AHK y el chrome del Explorador. El UNICO blanco es el contenido del Explorador (lista y arbol Win32, COLOR_WINDOW = 255 255 255), que Windows impone y no se deja pintar. Historia: la primera version mezclaba siete blancos, varios azulados; la segunda dejo el terminal en #FFFFFF y la statusline en #F3F3F3, y la franja de abajo se veia como una zona aparte. LINEA #E5E5E5 para separar; TARJETA #FBFBFB, un escalon por encima de la base, solo para lo que tiene que despegarse de ella (el mensaje del usuario en Claude Code), como las tarjetas de Windows sobre su Mica. El self-test comprueba que no se cuela otro fondo. Los ROLES tienen los mismos tonos (hue OKLCH) que la paleta oscura, a la MISMA luminosidad perceptiva (L 0.52) y el mismo croma (0.135; rojo y naranja 0.155, que con menos dejan de leerse como alarma). La primera version era la de GitHub: el teal a croma 0.086 junto a azul, morado y rojo a 0.19-0.21, el ambar y el naranja desviados 13-16 grados; no formaban familia con el teal y gritaban sobre el blanco. Texto por CONTRASTE MEDIDO: roles, fg, fgDim y los 16 ANSI >= 4.5:1 sobre los DOS tonos.",
+    "surfaces": {
+      "bg": "#F3F3F3",
+      "bgAlt": "#F3F3F3",
+      "bgPanel": "#F3F3F3",
+      "border": "#E5E5E5",
+      "fg": "#1B1B1B",
+      "fgDim": "#5F5F5F",
+      "selection": "#C8DDDB",
+      "ghost": "#8A8A8A",
+      "diffPlus": "#CDE0D6",
+      "diffMinus": "#E8D5D7",
+      "_diffNote": "Misma derivacion que en oscuro —verde y rojo de la paleta mezclados sobre el fondo— pero al 16% y no al 12%: sobre un fondo claro el 12% apenas se distingue de una linea sin cambios.",
+      "card": "#FBFBFB"
+    },
+    "roles": {
+      "_brightNote": "En claro `bright` es un paso MAS HONDO (L 0.42), no mas palido: es lo que usan la negrita y los resaltados (hl+ de fzf, rc-quote), y tienen que leerse mas, no desvanecerse. Los grises son NEUTROS, como los de Windows.",
+      "teal":   { "hex": "#037A6C", "bright": "#025A4F" },
+      "green":  { "hex": "#057E3F", "bright": "#035D2D" },
+      "blue":   { "hex": "#1B6BB3", "bright": "#024E8B" },
+      "amber":  { "hex": "#826404", "bright": "#604A02" },
+      "purple": { "hex": "#7952A8", "bright": "#5D3588" },
+      "red":    { "hex": "#B03942", "bright": "#8E1427" },
+      "white":  { "hex": "#1B1B1B", "bright": "#000000" },
+      "grey":   { "hex": "#6B6B6B", "bright": "#5F5F5F" },
+      "orange": { "hex": "#9A5501", "bright": "#723E02" }
+    },
+    "ansi": {
+      "_comment": "Los 16 del esquema de Windows Terminal; bat (--theme=ansi) y cualquier programa que pinte con colores con nombre tiran de aqui. `white` no puede ser blanco —saldria texto invisible, que es lo que hacen One Half Light y Tango—: es un gris legible, y brightWhite uno mas hondo, con la regla de los bright. cyan == roles.teal, igual que en oscuro: bat y delta dependen.",
+      "black": "#1B1B1B",
+      "red": "#B03942",
+      "green": "#057E3F",
+      "yellow": "#826404",
+      "blue": "#1B6BB3",
+      "purple": "#7952A8",
+      "cyan": "#037A6C",
+      "white": "#6B6B6B",
+      "brightBlack": "#616161",
+      "brightRed": "#8E1427",
+      "brightGreen": "#035D2D",
+      "brightYellow": "#604A02",
+      "brightBlue": "#024E8B",
+      "brightPurple": "#5D3588",
+      "brightCyan": "#025A4F",
+      "brightWhite": "#3F3F3F"
+    },
+    "windowsTerminal": {
+      "applicationTheme": "light",
+      "tab": "#F3F3F3",
+      "tabUnfocused": "#F3F3F3",
+      "tabRow": "#F3F3F3",
+      "tabRowUnfocused": "#F3F3F3",
+      "_tabNote": "Fila, pestana activa y terminal en la base: un tono. La pestana activa no se marca con otro color sino con su boton de cerrar, que solo lleva ella (showCloseButton = activeOnly); Windows Terminal ademas atenua el titulo de las demas.",
+      "intenseTextStyle": "bold",
+      "_intenseNote": "En oscuro la negrita se pinta con el color bright (`bright`). En claro, `bold`: fuente en negrita y el MISMO color, porque `\\e[1;37m` acabaria en brightWhite y una cabecera en negrita no tiene por que cambiar de tono.",
+      "showCloseButton": "activeOnly"
+    },
+    "windowsAccent": {
+      "base": "#1C9C8B",
+      "ramp": [
+        "#D6FFFA",
+        "#A9F2E8",
+        "#4DD6C1",
+        "#1C9C8B",
+        "#2B7D74",
+        "#1F5C56",
+        "#0E2E2B",
+        "#F2A35E"
+      ],
+      "inactiveBorder": "#C8C8C8",
+      "_note": "El acento es el borde de la ventana activa (win11-accent-border). El #4DD6C1 del modo oscuro da 1.79:1 contra una ventana blanca: la senal de cual esta activa se perdia. #1C9C8B da 3.40:1, por encima del 3:1 de WCAG para lo que no es texto. La rampa se recentra un escalon: el teal de siempre pasa a Light1 y Windows, que en modo claro rellena con Dark1 (#2B7D74), sigue dando 4.90:1 con texto blanco encima."
+    },
+    "windowsDesktop": {
+      "taskbar": {
+        "hover": "#000000",
+        "hoverAlpha": "0F",
+        "_hoverNote": "El hover del modo oscuro es blanco al 12%: sobre una barra clara no se ve. En claro, negro al 6%."
+      },
+      "explorer": {
+        "surfaces": {
+          "_comment": "Dos tonos, como el Explorador nativo de Windows 11 en claro: chrome (pestanas, barra de comandos y de direcciones, menus) en BASE, a juego con la franja del titulo, que es Mica y no se deja pintar; contenido en LIENZO, a juego con la lista y el arbol Win32 (COLOR_WINDOW, leido del registro: 255 255 255). Las cajas de texto, en lienzo, como las de Windows.",
+          "chrome": "#F3F3F3",
+          "canvas": "#FFFFFF",
+          "field": "#FFFFFF",
+          "border": "#E5E5E5",
+          "tabUnderline": "#037A6C"
+        }
+      },
+      "launcher": {
+        "text": "#1B1B1B",
+        "_textNote": "Flow hereda de su Base.xaml el texto en #FFFFF8 y el cursor en #E3E0E3, pensados para fondo oscuro: sobre blanco no se ven. Con `text` puesto, flow.py pinta titulos, caja de busqueda, cursor y reloj explicitamente. En oscuro no se define y el tema sale identico al de antes."
+      },
+      "wallpaper": {
+        "image": "C:\\Windows\\Web\\Wallpaper\\ThemeD\\img33.jpg",
+        "style": "fill",
+        "lockScreen": true,
+        "_note": "El Bloom de serie (Windows\\img0.jpg) es azul saturado: lo unico de ese azul en pantalla, y pelea con el acento teal. ThemeD\\img33 es la misma flor en verde salvia y viene con Windows. Sin `wallpaper` en la paleta, el fondo no se toca. lockScreen pone la misma imagen en la pantalla de bloqueo; la anterior se guarda en el snapshot."
+      }
     }
   }
 }

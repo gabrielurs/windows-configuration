@@ -53,6 +53,16 @@
       "id": "windows-11-notification-center-styler",
       "name": "Windows 11 Notification Center Styler",
       "que": "centro de notificaciones"
+    },
+    {
+      "id": "taskbar-tray-system-icon-tweaks",
+      "name": "Taskbar tray system icon tweaks",
+      "que": "bandeja sin red ni volumen, campana solo con avisos"
+    },
+    {
+      "id": "taskbar-volume-control",
+      "name": "Taskbar Volume Control",
+      "que": "la rueda sobre la barra cambia el volumen"
     }
   ]
 }

@@ -9,7 +9,7 @@ from __future__ import annotations
 import argparse, collections, datetime, glob, json, os, pathlib, shutil, subprocess, sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-import render, state, desktop, uninstall, flow, keys  # noqa: E402
+import render, state, desktop, uninstall, flow, keys, wallpaper  # noqa: E402
 
 STAMP = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
 MARKER_KEYS_VSCODE = ("terminal.background", "terminal.ansiCyan", "panel.background")
@@ -98,6 +98,145 @@ def dump_json(path: pathlib.Path, data, ctx: Ctx, indent=4, ascii_=False):
     with path.open("w", encoding="utf-8") as fh:
         json.dump(data, fh, indent=indent, ensure_ascii=ascii_)
         fh.write("\n")
+
+
+# ── la fuente con glifos ──────────────────────────────────────────────
+# Instalación POR USUARIO, sin elevar: el TTF va a %LOCALAPPDATA%\Microsoft\
+# Windows\Fonts y se registra en HKCU, que es lo mismo que hace «Instalar» sin
+# «para todos los usuarios». Va ANTES que Windows Terminal: si WT recibe una
+# `face` que no existe, avisa y cae a otra fuente.
+FONTS_REG = r"HKCU\Software\Microsoft\Windows NT\CurrentVersion\Fonts"
+FONT_CACHE = pathlib.Path.home() / ".cache/claude-terminal-theme"
+
+
+def _font_zip(url: str, ctx: Ctx) -> pathlib.Path | None:
+    dst = FONT_CACHE / url.rsplit("/", 1)[-1]
+    if dst.exists():
+        ctx.say(f"zip en caché: {dst}")
+        return dst
+    ctx.say(f"descargando {url}")
+    if ctx.dry:
+        return dst
+    import urllib.request
+    FONT_CACHE.mkdir(parents=True, exist_ok=True)
+    part = dst.with_name(dst.name + ".part")
+    # Dos intentos: release-assets.githubusercontent.com corta el SSL de vez en
+    # cuando a mitad de descarga, y al segundo va. Visto instalándolo.
+    for intento in (1, 2):
+        try:
+            with urllib.request.urlopen(url, timeout=60) as r, part.open("wb") as fh:
+                shutil.copyfileobj(r, fh, 1 << 20)
+            part.rename(dst)
+            return dst
+        except Exception as e:
+            print(f"    ! intento {intento}: {e}")
+    part.unlink(missing_ok=True)
+    print("    ! no pude bajar la fuente: descarga el zip a mano y déjalo en")
+    print(f"      {dst}")
+    return None
+
+
+def _powershell(script: str) -> str:
+    """Corre un script de PowerShell y devuelve su salida estándar.
+
+    Por `-EncodedCommand` y NO por `-Command -`: leyendo de stdin, PowerShell
+    ejecuta línea a línea, un here-string de varias líneas se rompe y NO sale
+    nada, ni por stdout ni por stderr. Así se dio por no instalada una fuente que
+    sí lo estaba. El stderr se descarta a propósito: trae el CLIXML de progreso
+    («Preparando módulos para el primer uso»), que no es un error."""
+    import base64
+    enc = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
+    try:
+        out = subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive",
+                              "-EncodedCommand", enc],
+                             capture_output=True, timeout=60, cwd="/mnt/c")
+        return out.stdout.decode("utf-8", "replace").strip()
+    except Exception as e:
+        return f"! {e}"
+
+
+def _font_session_load(win_paths: list[str], face: str) -> str:
+    """Carga los TTF en la sesión y avisa a las ventanas abiertas (WM_FONTCHANGE),
+    que es la otra mitad de lo que hace «Instalar». Devuelve las familias con ese
+    nombre que ve un proceso NUEVO: si sale vacío, la instalación no ha servido.
+
+    Dos procesos y no uno: preguntarle al mismo que acaba de llamar a
+    AddFontResource solo demuestra que ESE proceso la tiene cargada."""
+    lista = ",".join("'" + p.replace("'", "''") + "'" for p in win_paths)
+    _powershell(f"""
+$sig = @'
+[DllImport("gdi32.dll", CharSet=CharSet.Unicode)] public static extern int AddFontResourceW(string f);
+[DllImport("user32.dll")] public static extern IntPtr SendMessageTimeoutW(IntPtr h, uint m, UIntPtr w, IntPtr l, uint f, uint t, out UIntPtr r);
+'@
+$t = Add-Type -MemberDefinition $sig -Name Font -Namespace CTT -PassThru
+foreach ($p in @({lista})) {{ [void]$t::AddFontResourceW($p) }}
+$r = [UIntPtr]::Zero
+[void]$t::SendMessageTimeoutW([IntPtr]0xffff, 0x1D, [UIntPtr]::Zero, [IntPtr]::Zero, 2, 1000, [ref]$r)
+""")
+    return _font_seen(face)
+
+
+def _font_seen(face: str) -> str:
+    q = face.replace("'", "''")
+    return _powershell(f"""
+Add-Type -AssemblyName System.Drawing
+(New-Object System.Drawing.Text.InstalledFontCollection).Families | Where-Object {{ $_.Name -eq '{q}' }} | ForEach-Object {{ $_.Name }}
+""")
+
+
+def apply_font(pal: dict, home, ctx: Ctx) -> bool:
+    f = pal["font"]
+    src = f.get("nerdSource")
+    if not f.get("nerdGlyphs") or not src:
+        print("  · fuente: nerdGlyphs en false, no hace falta")
+        return False
+    if not home:
+        print("  · fuente: no localizo %USERPROFILE%, salto")
+        return False
+    fonts_dir = home / "AppData/Local/Microsoft/Windows/Fonts"
+    print(f"· fuente «{f['face']}» → {fonts_dir}")
+    faltan = {m: reg for m, reg in src["files"].items()
+              if not (fonts_dir / pathlib.PurePosixPath(m).name).exists()}
+    if not faltan:
+        ctx.say("ya instalada")
+        return False
+
+    zpath = _font_zip(src["url"], ctx)
+    if not zpath:
+        return False
+    import zipfile
+    win_paths = []
+    with (zipfile.ZipFile(zpath) if not ctx.dry else _NoZip()) as z:
+        for member, regname in faltan.items():
+            dst = fonts_dir / pathlib.PurePosixPath(member).name
+            ctx.snap.capture_file(dst)             # no existía: --uninstall lo borra
+            ctx.snap.capture_reg(FONTS_REG, regname)
+            win = subprocess.run(["wslpath", "-w", str(dst)], capture_output=True,
+                                 text=True).stdout.strip() or str(dst)
+            ctx.say(f"{dst.name}  →  {regname}")
+            if ctx.dry:
+                continue
+            fonts_dir.mkdir(parents=True, exist_ok=True)
+            with z.open(member) as s, dst.open("wb") as d:
+                shutil.copyfileobj(s, d)
+            subprocess.run(["reg.exe", "add", FONTS_REG, "/v", regname, "/t", "REG_SZ",
+                            "/d", win, "/f"], capture_output=True, cwd="/mnt/c")
+            win_paths.append(win)
+    if not ctx.dry:
+        seen = _font_session_load(win_paths, f["face"])
+        if seen == f["face"]:
+            ctx.say(f"un proceso nuevo ya ve «{f['face']}»")
+        else:
+            print(f"    ! un proceso nuevo NO ve «{f['face']}»: {seen or 'ninguna familia'}")
+    ctx.note("fuente con glifos")
+    print("  cierra y abre Windows Terminal: la fuente se lee al arrancar")
+    return False
+
+
+class _NoZip:
+    """Para --dry-run: que el `with` funcione sin haber descargado nada."""
+    def __enter__(self): return self
+    def __exit__(self, *a): return False
 
 
 # ── Windows Terminal ──────────────────────────────────────────────────
@@ -263,19 +402,32 @@ def build_steps(pal: dict | None, home) -> list[Step]:
     """Los pasos, en orden. Las funciones son perezosas: construir la lista no
     ejecuta nada, y por eso se puede llamar con (None, None) solo para leer las
     claves antes de tener la paleta cargada."""
-    def wt(ctx):      apply_wt(pal, ctx);           return False
+    # Tres paletas, cada una con su interruptor: la del escritorio (windowsMode),
+    # la de Windows Terminal y PowerShell (terminalMode) —las dos con el bloque
+    # `light` encima en claro— y la de siempre para VS Code, cuyo workbench es
+    # oscuro. Ver render.desktop y render.terminal.
+    dpal = render.desktop(pal) if pal else pal
+    tpal = render.terminal(pal) if pal else pal
+
+    def font(ctx):    return apply_font(pal, home, ctx)
+    def wt(ctx):      apply_wt(tpal, ctx);          return False
     def vscode(ctx):  apply_vscode(pal, home, ctx); return False
-    def ps(ctx):      apply_ps(pal, home, ctx);     return False
+    def ps(ctx):      apply_ps(tpal, home, ctx);    return False
 
     def accent(ctx):
-        apply_accent(pal, home, ctx)
+        apply_accent(dpal, home, ctx)
         desktop.broadcast_colorchange(ctx)     # escribirlo no lo aplica; hay que avisar
         return False
 
     def taskbar(ctx):
-        restart = desktop.apply_taskbar(ctx.snap, ctx, pal)
+        restart = desktop.apply_taskbar(ctx.snap, ctx, dpal)
         ctx.note("barra de tareas")             # se anota siempre, como antes
         return restart
+
+    def wall(ctx):
+        if wallpaper.apply(dpal, ctx.snap, ctx):
+            ctx.note("fondo y bloqueo")
+        return False
 
     def menu(ctx):
         if desktop.apply_context_menu(ctx.snap, ctx):
@@ -283,34 +435,36 @@ def build_steps(pal: dict | None, home) -> list[Step]:
         return False
 
     def launcher(ctx):
-        if flow.apply(pal, ctx.snap, ctx, home):
+        if flow.apply(dpal, ctx.snap, ctx, home):
             ctx.note("buscador flotante")
         return False
 
     def keymap(ctx):
-        if not keys.apply(pal, ctx.snap, ctx, home):
+        if not keys.apply(dpal, ctx.snap, ctx, home):
             return False
         ctx.note("atajos de ventanas")
         return False
 
     def icons(ctx):
-        if not desktop.apply_pinned_icons(pal, ctx.snap, ctx, home):
+        if not desktop.apply_pinned_icons(dpal, ctx.snap, ctx, home):
             return False
         ctx.note("iconos de los anclados")
         return True
 
     def windhawk(ctx):
-        if not desktop.apply_windhawk(pal, ctx.snap, ctx, home):
+        if not desktop.apply_windhawk(dpal, ctx.snap, ctx, home):
             return False
         ctx.note("Windhawk")
         return True
 
     return [
+        Step("font",     "fuente con glifos",      font),
         Step("wt",       "Windows Terminal",       wt),
         Step("vscode",   "VS Code",                vscode),
         Step("ps",       "PowerShell",             ps),
         Step("accent",   "acento de Windows",      accent),
         Step("taskbar",  "barra de tareas",        taskbar),
+        Step("wallpaper", "fondo y bloqueo",       wall),
         Step("menu",     "menú contextual",        menu),
         Step("launcher", "buscador flotante",      launcher),
         Step("keys",     "atajos de ventanas",     keymap),

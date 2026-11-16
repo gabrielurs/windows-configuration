@@ -73,15 +73,19 @@ install_shell() {
   local maj=${ver%%.*} min; min=$(echo "$ver" | cut -d. -f2)
   (( maj > 5 || (maj == 5 && min >= 7) )) || warn "zsh $ver: los hex del prompt piden zsh >= 5.7"
 
-  say "plugins de resaltado"
-  local p
-  for p in zsh-syntax-highlighting zsh-autosuggestions; do
+  say "plugins de resaltado y completado"
+  local spec p url
+  # fzf-tab no es de zsh-users; por eso cada plugin lleva su URL.
+  for spec in "zsh-syntax-highlighting https://github.com/zsh-users/zsh-syntax-highlighting.git" \
+              "zsh-autosuggestions https://github.com/zsh-users/zsh-autosuggestions.git" \
+              "fzf-tab https://github.com/Aloxaf/fzf-tab.git"; do
+    p=${spec%% *}; url=${spec#* }
     if [[ -d "$CUSTOM/plugins/$p" ]]; then
       step "$p ya está, actualizando"
       run git -C "$CUSTOM/plugins/$p" pull --quiet --ff-only || warn "no pude actualizar $p"
     else
       step "clonando $p"
-      run git clone --depth=1 --quiet "https://github.com/zsh-users/$p.git" "$CUSTOM/plugins/$p"
+      run git clone --depth=1 --quiet "$url" "$CUSTOM/plugins/$p"
     fi
   done
 

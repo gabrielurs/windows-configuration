@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """Deja ZSH_THEME y la lista de plugins del .zshrc como los quiere el tema.
 
-Idempotente y conservador: respeta los plugins que ya haya, solo añade los dos
-que necesita el resaltado, y pone zsh-syntax-highlighting el último (lo exige
-el propio plugin).
+Idempotente y conservador: respeta los plugins que ya haya y solo añade los que
+necesita el tema. Dos órdenes importan, y los exigen los propios plugins:
+fzf-tab va ANTES de zsh-autosuggestions (tiene que copiar el widget de Tab
+antes de que lo envuelvan) y zsh-syntax-highlighting va el último.
 """
 import os, pathlib, re, sys
 
-NEEDED = ["zsh-autosuggestions", "zsh-syntax-highlighting"]
+NEEDED = ["fzf-tab", "zsh-autosuggestions", "zsh-syntax-highlighting"]
 LAST = "zsh-syntax-highlighting"
+BEFORE = ("fzf-tab", "zsh-autosuggestions")      # (este, antes que este)
 
 path = pathlib.Path(os.environ.get("ZSHRC", pathlib.Path.home() / ".zshrc"))
 if not path.exists():
@@ -29,6 +31,9 @@ if m:
     for p in NEEDED:
         if p not in have:
             have.append(p)
+    first, then = BEFORE
+    have.remove(first)
+    have.insert(have.index(then), first)
     have = [p for p in have if p != LAST] + [LAST]   # el highlighter, siempre el último
     out = out[:m.start()] + f"plugins=({' '.join(have)})" + out[m.end():]
 else:

@@ -15,6 +15,35 @@ def load(path: pathlib.Path | None = None) -> dict:
     return json.loads((path or ROOT / "palette.json").read_text(encoding="utf-8"))
 
 
+def _overlay(base: dict, over: dict) -> dict:
+    """Superpone `over` sobre una COPIA de `base`, clave a clave. Las claves «_»
+    son notas y no se copian: si no, una nota del bloque claro taparía la del
+    oscuro y el diccionario resultante mentiría sobre de dónde sale cada valor."""
+    out = dict(base)
+    for k, v in over.items():
+        if k.startswith("_"):
+            continue
+        out[k] = _overlay(base[k], v) if isinstance(v, dict) and isinstance(base.get(k), dict) else v
+    return out
+
+
+def desktop(p: dict) -> dict:
+    """La paleta que ve el ESCRITORIO de Windows: la de siempre en oscuro, y en
+    claro la misma con el bloque `light` encima."""
+    if p.get("windowsMode", "dark") != "light":
+        return p
+    return _overlay(p, p.get("light", {}))
+
+
+def terminal(p: dict) -> dict:
+    """La paleta de Windows Terminal, PowerShell y zsh, con su propio
+    interruptor (`terminalMode`). VS Code no pasa por aquí: su workbench es
+    oscuro y su terminal se queda con la paleta de siempre."""
+    if p.get("terminalMode", "dark") != "light":
+        return p
+    return _overlay(p, p.get("light", {}))
+
+
 # ── conversiones de color ─────────────────────────────────────────────
 def rgb(hex_: str) -> tuple[int, int, int]:
     h = hex_.lstrip("#")
@@ -48,11 +77,30 @@ def accent_palette_blob(ramp: list[str]) -> str:
 
 # ── artefactos ────────────────────────────────────────────────────────
 def palette_zsh(p: dict) -> str:
-    out = [
+    head = [
         "# GENERADO por lib/render.py desde palette.json — no editar a mano.",
         "# Cambia palette.json y vuelve a lanzar ./install.sh",
         "",
     ]
+    if p.get("terminalMode", "dark") != "light":
+        return "\n".join(head + _palette_zsh_vars(p)) + "\n"
+    # zsh es el mismo en Windows Terminal y en VS Code, pero VS Code se queda
+    # oscuro: los pasteles del claro sobre su fondo negro, o al revés, no se
+    # leen. La paleta se elige al arrancar la shell, por el terminal que la abre.
+    dark, light = _palette_zsh_vars(p), _palette_zsh_vars(terminal(p))
+    ind = lambda rows: ["  " + r if r else r for r in rows]
+    return "\n".join(head + [
+        "# terminalMode=light: claro en Windows Terminal, oscuro en VS Code",
+        "if [[ $TERM_PROGRAM == vscode ]]; then",
+        "  typeset -g CC_MODE=dark", *ind(dark),
+        "else",
+        "  typeset -g CC_MODE=light", *ind(light),
+        "fi",
+    ]) + "\n"
+
+
+def _palette_zsh_vars(p: dict) -> list[str]:
+    out: list[str] = []
     for name, role in p["roles"].items():
         u = name.upper()
         out.append(f"typeset -g CC_HEX_{u}='{role['hex']}'")
@@ -70,7 +118,7 @@ def palette_zsh(p: dict) -> str:
     out.append(f"typeset -g CC_BG_SEL='{sgr(p['surfaces']['selection'], 'bg')}'")
     out.append(f"typeset -g CC_BG_DARK='{sgr(p['surfaces']['bgAlt'], 'bg')}'")
     out.append("")
-    return "\n".join(out) + "\n"
+    return out
 
 
 def wt_scheme(p: dict) -> dict:
@@ -86,14 +134,16 @@ def wt_scheme(p: dict) -> dict:
 
 
 def wt_theme(p: dict) -> dict:
+    w = p.get("windowsTerminal", {})       # solo lo define el bloque `light`
+    s = p["surfaces"]
     return {
         "name": p["name"],
-        "window": {"applicationTheme": "dark"},
-        "tab": {"background": p["surfaces"]["bgAlt"],
-                "unfocusedBackground": p["surfaces"]["bg"],
-                "showCloseButton": "always"},
-        "tabRow": {"background": p["surfaces"]["bg"],
-                   "unfocusedBackground": "#050708"},
+        "window": {"applicationTheme": w.get("applicationTheme", "dark")},
+        "tab": {"background": w.get("tab", s["bgAlt"]),
+                "unfocusedBackground": w.get("tabUnfocused", s["bg"]),
+                "showCloseButton": w.get("showCloseButton", "always")},
+        "tabRow": {"background": w.get("tabRow", s["bg"]),
+                   "unfocusedBackground": w.get("tabRowUnfocused", "#050708")},
     }
 
 
@@ -107,7 +157,7 @@ def wt_defaults(p: dict) -> dict:
         "scrollbarState": "hidden",
         "useAcrylic": False,
         "opacity": 100,
-        "intenseTextStyle": "bright",
+        "intenseTextStyle": p.get("windowsTerminal", {}).get("intenseTextStyle", "bright"),
         "historySize": 20000,
         "bellStyle": "none",
         "experimental.retroTerminalEffect": False,
@@ -135,13 +185,79 @@ def vscode_colors(p: dict) -> dict:
     return out
 
 
+def mix(fg: str, bg: str, a: float) -> str:
+    """`fg` al `a` sobre `bg`, en sRGB. Así se derivan los fondos de diff y los
+    tintes: no se eligen a ojo."""
+    f, b = rgb(fg), rgb(bg)
+    return "#" + "".join(f"{round(y * (1 - a) + x * a):02X}" for x, y in zip(f, b))
+
+
+def claude_theme(p: dict) -> dict:
+    """El tema de Claude Code para el terminal claro —custom:terminal-light—,
+    GENERADO desde la paleta: los mismos roles que zsh y Windows Terminal, y los
+    mismo fondo que el terminal y que la statusline. El mensaje del usuario va en
+    la TARJETA, un escalón por encima de ese fondo, como en el tema oscuro va un
+    escalón por encima del negro. Las claves y su orden son las del tema oscuro
+    «Terminal» de claude-code-themes.
+
+    Antes era un JSON escrito a mano con otra paleta que la del terminal, y eso
+    es exactamente lo que hacía que cada cosa tuviera su blanco y sus colores."""
+    t = terminal(dict(p, terminalMode="light"))
+    s = t["surfaces"]
+    r = {k: v["hex"] for k, v in t["roles"].items()}
+    br = {k: v["bright"] for k, v in t["roles"].items()}
+    acc = desktop(dict(p, windowsMode="light"))["windowsAccent"]
+    canvas, base, line, card = s["bg"], s["bgAlt"], s["border"], s.get("card", s["bgAlt"])
+    shim = lambda c: mix(c, "#FFFFFF", 0.25)       # el brillo de las animaciones
+    pink, indigo = "#A04374", "#535FB5"            # OKLCH L 0.52 C 0.135, h 350 y 277
+    o = {
+        "claude": r["teal"], "claudeShimmer": shim(r["teal"]),
+        "text": s["fg"], "inactive": s["fgDim"], "subtle": s["ghost"], "suggestion": r["grey"],
+        "permission": r["purple"], "permissionShimmer": shim(r["purple"]),
+        "remember": r["blue"], "success": r["green"], "error": r["red"], "warning": r["amber"],
+        "merged": r["purple"],
+        "promptBorder": acc["base"], "promptBorderShimmer": acc["ramp"][2],
+        "planMode": r["blue"], "autoAccept": r["green"], "bashBorder": r["purple"],
+        "diffAdded": s["diffPlus"], "diffRemoved": s["diffMinus"],
+        "diffAddedWord": mix(r["green"], canvas, 0.32), "diffRemovedWord": mix(r["red"], canvas, 0.32),
+        "userMessageBackground": card, "selectionBg": s["selection"],
+        "rate_limit_fill": r["blue"], "rate_limit_empty": line,
+        "briefLabelYou": s["fgDim"], "briefLabelClaude": r["teal"],
+        "skill": r["purple"], "effortUltra": br["purple"],
+        "ide": r["blue"], "professionalBlue": r["blue"], "chromeYellow": r["amber"],
+        "warningShimmer": shim(r["amber"]), "fastMode": r["orange"], "fastModeShimmer": shim(r["orange"]),
+        "claudeBlue_FOR_SYSTEM_SPINNER": r["teal"], "claudeBlueShimmer_FOR_SYSTEM_SPINNER": shim(r["teal"]),
+        "clawd_body": r["teal"], "clawd_background": canvas,
+        "background": r["teal"], "inverseText": "#FFFFFF",   # tinta sobre el teal, no un fondo
+        "inactiveShimmer": s["ghost"], "autoAcceptShimmer": shim(r["green"]),
+        "diffAddedDimmed": mix(r["green"], canvas, 0.08), "diffRemovedDimmed": mix(r["red"], canvas, 0.08),
+        "userMessageBackgroundHover": mix("#000000", card, 0.05),
+        "composerSidebarBackground": base,
+        "bashMessageBackgroundColor": mix(r["purple"], canvas, 0.06),
+        "memoryBackgroundColor": mix(r["blue"], canvas, 0.06),
+    }
+    sub = {"red": "red", "orange": "orange", "yellow": "amber", "green": "green",
+           "cyan": "teal", "blue": "blue", "purple": "purple"}
+    for name, role in sub.items():
+        o[f"{name}_FOR_SUBAGENTS_ONLY"] = r[role]
+    o["pink_FOR_SUBAGENTS_ONLY"] = pink
+    rainbow = {"red": r["red"], "orange": r["orange"], "yellow": r["amber"], "green": r["green"],
+               "blue": r["blue"], "indigo": indigo, "violet": r["purple"]}
+    for name, c in rainbow.items():
+        o[f"rainbow_{name}"] = c
+    for name, c in rainbow.items():
+        o[f"rainbow_{name}_shimmer"] = shim(c)
+    return {"name": "Terminal Light", "base": "light",
+            "overrides": {k: v.lower() for k, v in o.items()}}
+
+
 def registry_values(p: dict) -> list[tuple[str, str, str, str]]:
     """(clave, nombre, tipo, dato) — lo que escribe el instalador."""
     w = p["windowsAccent"]
     A = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Accent"
     D = r"HKCU\Software\Microsoft\Windows\DWM"
     al = w["colorizationAlpha"]
-    return [
+    out = [
         (A, "AccentPalette",         "REG_BINARY", accent_palette_blob(w["ramp"])),
         (A, "AccentColorMenu",       "REG_DWORD",  abgr(w["base"])),
         (A, "StartColorMenu",        "REG_DWORD",  abgr(w["start"])),
@@ -150,6 +266,16 @@ def registry_values(p: dict) -> list[tuple[str, str, str, str]]:
         (D, "ColorizationColor",     "REG_DWORD",  argb(w["base"], al)),
         (D, "ColorizationAfterglow", "REG_DWORD",  argb(w["base"], al)),
     ]
+    # El modo de apps va a juego con el de los mods. Si no, pasa lo que pasó:
+    # Windows en claro desde Configuración y la barra, el Inicio y medio
+    # Explorador en negro, porque los mods llevan los colores escritos. Sin
+    # `windowsMode` en la paleta no se toca, como antes de existir la clave.
+    if "windowsMode" in p:
+        P = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
+        light = "0x1" if p["windowsMode"] == "light" else "0x0"
+        out += [(P, "AppsUseLightTheme",    "REG_DWORD", light),
+                (P, "SystemUsesLightTheme", "REG_DWORD", light)]
+    return out
 
 
 def ps_substitutions(p: dict) -> dict[str, str]:
@@ -230,7 +356,13 @@ def keymap_zsh(p: dict) -> str:
             m = k[surface]["modes"][mode]
             var = f"CC_KEYS_{surface.upper()}_{mode.upper()}"
             out.append(f"typeset -g {var}_BADGE='{m['badge']}'")
-            out.append(f"typeset -g {var}_ROLE='{p['roles'][m['role']]['hex']}'")
+            # El color del rol NO se escribe en hex: apunta a la variable de la
+            # paleta, que claude-00 ya eligió según el terminal (claro en
+            # Windows Terminal, oscuro en VS Code). Con el hex escrito, la
+            # insignia NORMAL salía en el morado pastel del oscuro sobre el
+            # fondo claro, a 2.6:1. El hex oscuro queda de respaldo.
+            role = m["role"]
+            out.append(f'typeset -g {var}_ROLE="${{CC_HEX_{role.upper()}:-{p["roles"][role]["hex"]}}}"')
             pairs = " ".join(_zq(c) for h in mode_hints(p, surface, mode) for c in h)
             out.append(f"typeset -ga {var}=({pairs})")
         names = " ".join(f"'{m}'" for m in k[surface]["modes"])
@@ -290,16 +422,19 @@ if __name__ == "__main__":
     if what == "palette.zsh":
         sys.stdout.write(palette_zsh(pal))
     elif what == "scheme":
-        json.dump(wt_scheme(pal), sys.stdout, indent=2, ensure_ascii=False)
+        json.dump(wt_scheme(terminal(pal)), sys.stdout, indent=2, ensure_ascii=False)
     elif what == "vscode":
         json.dump(vscode_colors(pal), sys.stdout, indent=2, ensure_ascii=False)
     elif what == "registry":
-        for k, n, t, d in registry_values(pal):
+        for k, n, t, d in registry_values(desktop(pal)):
             print(f"{k}\t{n}\t{t}\t{d}")
     elif what == "keymap.zsh":
         sys.stdout.write(keymap_zsh(pal))
+    elif what == "claude-theme":
+        json.dump(claude_theme(pal), sys.stdout, indent=2, ensure_ascii=False)
+        sys.stdout.write("\n")
     elif what == "keys.ahk":
-        for k, v in ahk_substitutions(pal).items():
+        for k, v in ahk_substitutions(desktop(pal)).items():
             print(f"{k}\t{v}")
     else:
         sys.exit(f"artefacto desconocido: {what}")

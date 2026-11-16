@@ -33,6 +33,76 @@ setopt PUSHD_IGNORE_DUPS
 setopt PUSHD_SILENT           # apilar no imprime la pila entera
 DIRSTACKSIZE=20
 
+# La carpeta de proyectos, a un `cd` de cualquier sitio:
+#   cd avanzapi-frontend      desde donde estés, sin la ruta
+#   avanzapi-frontend         lo mismo: AUTO_CD también mira cdpath
+#   ~p/echo<Tab>              el mismo sitio, con nombre corto
+# Lo local gana: con un ./echo delante, `cd echo` va ahí. Y un comando con el
+# mismo nombre que un proyecto gana al AUTO_CD, así que ese necesita el `cd`.
+#
+# Lo de AUTO_CD se midió conduciendo una shell interactiva por pty. Con
+# `zsh -f -c` sale lo contrario —ahí no salta— y eso llegó a escribirse aquí
+# como comprobado. No lo estaba: se había medido en la shell equivocada.
+#
+# Efecto que se ve: el %~ del prompt usa los nombres de `hash -d`, así que fuera
+# de un repo la ruta sale como ~p/algo en vez de ~/projects/algo.
+() {
+  local d
+  for d in ~/projects ~/proyectos ~/src ~/code; do
+    [[ -d $d ]] || continue
+    cdpath=($d)
+    hash -d p=$d
+    return
+  done
+}
+
+# ── Alt+↑ ← →: moverse por directorios sin tocar lo escrito ──────────
+# Alt+↑ sube, Alt+← vuelve por donde viniste, Alt+→ deshace el volver. Como en
+# un navegador: cualquier `cd` normal olvida el «adelante».
+#
+# Las ataduras van en la capa 40 (en viins y vicmd): aquí `main` todavía es
+# emacs y lo que se ate ahora se queda huérfano en cuanto entra el modo vim.
+typeset -ga _claude_nav_fwd
+typeset -gi _claude_nav_moving=0
+
+_claude_nav_forget() { (( _claude_nav_moving )) || _claude_nav_fwd=() }
+autoload -Uz add-zsh-hook
+add-zsh-hook chpwd _claude_nav_forget
+
+# $1: up | back | forward. Devuelve 1 si no hay adónde ir.
+_claude_nav() {
+  local from=$PWD
+  case $1 in
+    up)      [[ $PWD != / ]] || return 1
+             builtin cd .. ;;
+    back)    (( $#dirstack )) || return 1
+             _claude_nav_moving=1
+             builtin popd
+             _claude_nav_moving=0
+             _claude_nav_fwd=("$from" $_claude_nav_fwd) ;;
+    forward) (( $#_claude_nav_fwd )) || return 1
+             _claude_nav_moving=1
+             builtin cd -- "$_claude_nav_fwd[1]" && shift _claude_nav_fwd
+             _claude_nav_moving=0 ;;
+  esac
+}
+
+# El widget. `zle -I` antes de moverse: los ganchos de chpwd (el listado de la
+# capa 30) imprimen, y sin esto su salida se pinta ENCIMA de la línea que estás
+# editando. Después se corren los precmd a mano, porque sin aceptar línea zsh no
+# los lanza y el prompt seguiría enseñando la ruta y la rama de antes.
+_claude_nav_widget() {
+  local dir=${WIDGET#_claude_cd_}
+  zle -I
+  _claude_nav $dir || return 0
+  local f
+  for f in $precmd_functions; do $f; done
+  zle reset-prompt
+}
+zle -N _claude_cd_up      _claude_nav_widget
+zle -N _claude_cd_back    _claude_nav_widget
+zle -N _claude_cd_forward _claude_nav_widget
+
 setopt EXTENDED_GLOB          # ^, ~ y (#i) en los globs
 setopt INTERACTIVE_COMMENTS   # un # en la línea es un comentario, no un error
 setopt NO_BEEP
@@ -91,6 +161,9 @@ bindkey '^[[3~'   delete-char               # Supr
 bindkey '^[[1;5C' forward-word              # Ctrl+→
 bindkey '^[[1;5D' backward-word             # Ctrl+←
 bindkey '^[[3;5~' kill-word                 # Ctrl+Supr
+bindkey '^[[1;3A' _claude_cd_up             # Alt+↑
+bindkey '^[[1;3D' _claude_cd_back           # Alt+←
+bindkey '^[[1;3C' _claude_cd_forward        # Alt+→
 
 # Ojo: en Windows Terminal, Ctrl+Retroceso manda ^H y el Retroceso normal ^?.
 # Por eso esto no se come el borrado de toda la vida.

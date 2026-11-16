@@ -14,9 +14,11 @@ remoto  github.com:gabrielurs/windows-configuration  (ssh github.com-iesebre)
 | | |
 |---|---|
 | ida y vuelta | **7/7** testigos tras desinstalar y reinstalar de verdad |
-| auto-test | **63/63**, con el chuletario contrastado contra `bindkey` |
+| auto-test | **75/75**, con el chuletario contrastado contra `bindkey` |
+| navegación | fzf-tab en Tab, `cdpath` + `~p`, Alt+↑ ← →, listado al entrar, ruta relativa al repo — 15 de septiembre |
+| fuente | Cascadia Code NF por usuario; un proceso nuevo la ve (medido con GDI+) |
 | snapshot | 84 entradas — 14 ficheros, 60 valores, 10 claves completas |
-| mods de Windhawk | 10 configurados, 178 ajustes |
+| mods de Windhawk | 12 configurados, 194 ajustes (16 de noviembre: + bandeja y volumen) |
 | rama de git | servicio activo en `127.0.0.1:8756` |
 | buscador | Flow Launcher, tema `ClaudeCLI`, `Ctrl+Space` |
 | acento | `#4DD6C1` con `ColorPrevalence=0` |
@@ -26,7 +28,7 @@ remoto  github.com:gabrielurs/windows-configuration  (ssh github.com-iesebre)
 
 | superficie | qué lleva |
 |---|---|
-| barra | 50 px, iconos a 24, esquinas superiores a 14, un icono por app sin etiqueta, Inicio a la izquierda con el chevron teal |
+| barra | 50 px, iconos a 24, recta (a 14 dejaba cuñas del fondo arriba), un icono por app sin etiqueta, Inicio a la izquierda con el chevron teal; sin lupa; bandeja sin red ni volumen y volumen con la rueda (dos mods que se instalan a mano) |
 | reloj | dos líneas con segundos, día abreviado, cpu/ram y la rama de git del repo donde tienes la shell |
 | Explorador | un solo tono `#191919`; panel de detalles y barra de estado eliminados, no recoloreados |
 | ventanas | borde teal en la activa, gris en las inactivas, sin pintar la barra de título |
@@ -84,6 +86,47 @@ para todas. Lo piden las dos versiones del diseño; no hay forma.
 
 ## Trampas que costaron tiempo
 
+### La barra: los selectores con estado del README del mod no casan (build 26200.9974)
+
+`Taskbar.TaskListLabeledButtonPanel@CommonStates > Border#BackgroundElement` y
+`…@RunningIndicatorStates > Rectangle#RunningIndicator` son literalmente los ejemplos del
+README de Taskbar Styler 1.8, y aquí **no pintaban nada**: indicadores en el gris de
+Windows (`#868686`), botón activo en la tarjeta blanca de serie (`#F9F9F9`), el tinte de
+Inicio a 0 píxeles. Nadie lo había mirado en claro. Cuatro sondas de colores chillones, el
+2026-11-16:
+
+```
+✓ Rectangle#RunningIndicator                                   (a secas)
+✓ Taskbar.TaskListButton > * > Rectangle#RunningIndicator
+✓ Taskbar.TaskListButton > * > Border#BackgroundElement
+✓ …#LaunchListButton[AutomationProperties.AutomationId=StartButton] > * > Border#BackgroundElement
+✗ Taskbar.TaskListLabeledButtonPanel > …   ✗ Taskbar.TaskListButtonPanel > …   (directo o con > * >)
+✗ Taskbar.TaskListButton@CommonStates > * > …     ✗ …StartButton] > TaskListButtonPanel > Border
+```
+
+Un `Background` sin estado sí pinta, pero igual en reposo, hover y activo. La salida fue no
+pelear con los estados: **sobrescribir los pinceles que usa la plantilla** con
+`themeResourceVariables`. Los nombres salen de `resources.pri` de
+`MicrosoftWindows.Client.Core` (`strings -el`), y cuál pinta qué, de otra sonda:
+
+| recurso | pinta |
+|---|---|
+| `RunningIndicatorBrush` | indicador de app abierta |
+| `RunningIndicatorActiveBrush` | indicador de la activa |
+| `ShellTaskbarItemFillColorSecondaryBrush` | fondo del botón activo (también con hover) |
+| `ShellTaskbarItemFillColorAltSecondaryBrush` | hover sobre uno inactivo |
+| `ShellTaskbarItemFillColorTertiaryBrush` | pulsado, activo o no |
+| `RequestingAttentionBrush` · `…HoverBrush` · `…PressedBrush` | fondo del aviso: reposo, hover, pulsado |
+| `RunningIndicatorRequestingAttentionBrush` | indicador del aviso |
+
+`Primary` no sale en ningún estado; no se toca. El aviso y la pulsación se midieron con una
+ventana de prueba propia (WinForms, `FlashWindowEx`) para no tocar las del usuario: en ámbar
+al 15/20 % salen exactos (`#E2DED0`, `#DCD6C3`). El color final de la pulsación normal no se
+llegó a ver: con clics sintéticos el estado no siempre se dispara. **Los recursos solo
+se aplican al reiniciar explorer**, no en caliente como los `controlStyles`. UI Automation
+no sirve para sacar clases: da la del *automation peer* (`ToggleButton`,
+`TaskListButtonAutomationPeer`), no la XAML.
+
 ### Explorer reescribe lo que le toques mientras vive
 
 El blob `Favorites` de los anclados se vuelca al cerrarse. **Matar explorer ANTES de
@@ -140,6 +183,24 @@ explícito. Si no, la tira anuncia «deshacer / rehacer» y `^R` abre el buscado
 Esto es la razón de que el auto-test compare contra un **widget esperado** y no solo contra
 «¿está atado?». La tecla respondía; hacía otra cosa. Un chuletario que miente es peor que no
 tener chuletario.
+
+### PowerShell por stdin no ejecuta un here-string, y no lo dice
+
+`powershell.exe -Command -` con el script en stdin lee **línea a línea**: un `@' … '@` de
+varias líneas se rompe y no sale **nada**, ni por stdout ni por stderr. Así el paso de la fuente
+daba por no instalada una fuente que sí lo estaba. La vía buena es `-EncodedCommand` con el
+script en UTF-16LE y base64 (`_powershell()` en `apply_windows.py`). Su stderr trae un CLIXML de
+progreso —«Preparando módulos para el primer uso»— que no es un error.
+
+Y la verificación va en **otro proceso**: preguntarle al mismo que acaba de hacer
+`AddFontResource` solo demuestra que ese proceso la tiene cargada.
+
+### AUTO_CD sí mira cdpath — en la shell de verdad
+
+Probado primero con `zsh -f -c '… eval alpha'`: no saltaba, y se llegó a escribir en la capa 20
+como «comprobado». Conduciendo un zsh interactivo por pty, `vertex` a secas desde `/tmp` lleva a
+`~/projects/vertex`. Mismo aprendizaje que el `emulate -L zsh` de la sonda: **una shell que no
+es la interactiva no mide la interactiva**.
 
 ### Lo que un banco de pruebas con pty NO puede tocar
 
@@ -206,32 +267,50 @@ instalador para en seco si añades un mod al código sin su ficha.
 
 ## Pendiente y sin verificar
 
+### Explorador, notificaciones y Flow en claro — medidos el 16 de noviembre
+
+Explorador (PrintWindow de una ventana propia en `C:\Windows\Web\Wallpaper`): cromo
+`#F3F3F3`, cajas y lista `#FFFFFF`, líneas `#E5E5E5`, panel de navegación en el blanco del
+lienzo Win32. La franja de pestañas sale `#E8E8E8` en PrintWindow; en pantalla no se pudo
+medir limpia (otras ventanas encima). Centro de notificaciones: fondo `#F3F3F3`, tarjetas
+`#F6F6F6`, texto `#1B1B1B`, ni rastro del oscuro. Flow: caja `#F3F3F3`, selección `#C8DDDB`.
+
 ### Sección 08 — aplicado pero nadie lo ha visto
 
 La previsualización de la barra y el Alt+Tab. Los tres targets están en el registro y salen
 del catálogo del mod, pero solo aparecen con interacción real y `keybd_event` no las abre.
 **Pasar el ratón por un icono de la barra y probar Alt+Tab.**
 
-### Los iconos de eza, apagados a propósito
+### Los iconos y Alt+flechas, sin ver en Windows Terminal
 
-No es que fallen: `Cascadia Code` no tiene glifos en la zona de uso privado
-(`U+E000`–`U+F8FF`) y con `--icons` sale un `?` por fichero. El interruptor vive en
-`palette.json` → `font.nerdGlyphs`, hoy en `false`. Para encenderlos hace falta instalar
-**Cascadia Code NF** (de las releases de Microsoft; no está en winget) y poner `face` y
-`nerdGlyphs` acordes.
+Encendidos desde el 15 de septiembre: el paso `font` de `apply_windows.py` instala **Cascadia
+Code NF** por usuario y `nerdGlyphs` va en `true`. Medido: los TTF y los valores de `HKCU`
+están, y un proceso **nuevo** lista la familia. Lo que **no** se ha visto es la pantalla de
+Windows Terminal reiniciado con la fuente puesta. **Cerrar WT, abrirlo y hacer un `ls`.**
 
-### Android Studio se queda con su icono
+Alt+↑ ← → se probaron conduciendo un zsh interactivo por pty: los tres widgets mueven el
+directorio a través de ZLE. Lo que no se ha probado es que Windows Terminal deje pasar la
+tecla: de serie la ata a mover el foco entre paneles, y con un solo panel **debería** llegar
+a la shell. **Pulsarlas en una pestaña sin partir.**
 
-De los tres anclados de esta máquina —Android Studio, File Explorer, Google Chrome— el
-primero no está en `icons.APPS` y el instalador lo dice y sigue:
+fzf-tab se comprueba atado y cargado, pero su ventana no: bajo el pty de los tests fzf no
+llega a pintarse (ver la sección del pty). **Un `cd ~/projects/<Tab>` a mano.**
 
-```
-[dry] Android Studio: sin glifo asignado en icons.APPS, lo dejo
-```
+### Los glifos de los anclados, apagados
 
-**No es un fallo: el diseño especifica siete glifos y ese no es uno.** Añadirlo obliga a
-inventarse glifo y rol, que es justo lo que este repo lleva evitando. Si algún día se
-quiere, la decisión es de diseño y la línea va en `lib/icons.py`, en `APPS`.
+Desde el 16 de noviembre `pinnedIcons` va en `stock`. Los glifos solo llegaban a los
+anclados de `icons.APPS`: Android Studio no está, y lo que se abre sin anclar —Brave,
+Slack, Thunderbird, Terminal— pone el suyo. La barra quedaba **siempre** mitad glifo, mitad
+icono de color (medido: 2 y 4), y el usuario eligió todos de serie. `glyphs` sigue en el
+código por si se quiere volver.
+
+**Trampa: quitar un glifo no se ve en una app abierta y agrupada con su anclado.** El
+Chrome anclado siguió morado con el `.lnk` ya devuelto a `chrome.exe,0` tras
+`ie4uinit -show`, tras `ie4uinit -ClearIconCache` y tras reiniciar explorer dos veces. La
+ventana daba su logo de siempre (`WM_GETICON`) y el blob `Favorites` no guarda rutas de
+icono. Lo que lo arregló: borrar `%LOCALAPPDATA%\Microsoft\Windows\Explorer\iconcache_*.db`
+**con explorer parado** — `-ClearIconCache` no los toca mientras explorer los tiene
+abiertos (`iconcache_256.db` seguía con la hora de antes).
 
 ### Los atajos de ventanas: probados por sonda, no a mano
 
@@ -283,10 +362,17 @@ Lo que **sigue** sin cobertura es todo el lado Windows: los selectores XAML de W
 barra, el Explorador. Eso se verificó midiendo píxeles a mano sobre capturas y no viaja al
 repo — quien cambie un selector sigue sin forma automática de saber si lo rompió.
 
-### Fondo de escritorio y bloqueo — descartados a propósito
+### Fondo de escritorio y bloqueo
 
-Secciones 09 y 10 del diseño. El usuario prefiere el fondo que tiene. La retícula de 25 px
-sobre `#07090a` con dos halos está especificada si algún día se quiere.
+Secciones 09 y 10 del diseño. En oscuro siguen descartadas: el usuario prefería su fondo, y
+la retícula de 25 px sobre `#07090a` con dos halos está especificada si algún día se quiere.
+
+En claro sí (16 de noviembre, elegido por el usuario): `ThemeD\img33.jpg`, el mismo Bloom en
+verde salvia, en escritorio y bloqueo. Va por `SystemParametersInfo` y por
+`LockScreen.SetImageFileAsync`. La imagen de bloqueo de antes está en el snapshot como
+`lockscreen-original.png` — era un PNG aunque el original fuera `.jpg`: la API da una copia
+recodificada, y por eso tampoco hay forma barata de saber si ya está puesta y se escribe
+siempre.
 
 ## Para retomarlo
 
@@ -307,7 +393,7 @@ curl -fsSL https://raw.githubusercontent.com/gabrielurs/windows-configuration/ma
 ./install.sh --dry-run
 
 # solo una parte — esto salta todo menos los mods de Windhawk
-python3 lib/apply_windows.py --skip wt,vscode,ps,accent,taskbar,menu,icons,launcher
+python3 lib/apply_windows.py --skip font,wt,vscode,ps,accent,taskbar,wallpaper,menu,launcher,keys,icons
 
 # volver al estado anterior a conocer este repo
 ./install.sh --uninstall

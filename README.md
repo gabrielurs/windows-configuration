@@ -3,8 +3,8 @@
 Mi máquina Windows + WSL entera en un repo: el tema, la barra, el shell y la marcha
 atrás. El tema deriva de la paleta que usa **Claude Code** en prosa y se aplica de una
 pasada a todo lo que ves cuando trabajas: zsh, Windows Terminal, PowerShell, la terminal
-integrada de VS Code, el acento de Windows y la barra de tareas — que pasa a ser un
-dock flotante al estilo macOS.
+integrada de VS Code, el acento de Windows, el fondo y la barra de tareas, que queda
+plana, de borde a borde y siempre visible.
 
 No es un tema más: la paleta asigna **un color por tipo de dato**, siempre el mismo.
 Una ruta es teal en el prompt, en `ls`, en `grep -n`, en el resaltado de la línea de
@@ -84,8 +84,8 @@ de registro a `%USERPROFILE%\claude-theme-backup\`.
 - `claude-00-palette.zsh` — generado desde `palette.json`, define `CC_TEAL`, `CC_HEX_TEAL`…
 - `claude-10-colors.zsh` — `LS_COLORS`, `GREP_COLORS`, `LESS_TERMCAP_*`, colores del
   completado y los estilos de los dos plugins de resaltado. Trae `claude-palette`.
-- `claude-20-shell.zsh` — cómo se **comporta** el shell: historial, completado y teclas.
-  Aquí no se pinta nada.
+- `claude-20-shell.zsh` — cómo se **comporta** el shell: historial, completado, teclas y
+  navegación (`cdpath`, `~p`, Alt+↑ ← →). Aquí no se pinta nada.
 - `claude-30-tools.zsh` — fzf, eza, bat, fd, zoxide y delta vestidos con la paleta. Cada
   integración va dentro de un `command -v`: en una máquina sin esas herramientas la capa
   no hace nada y el shell arranca igual.
@@ -93,15 +93,21 @@ de registro a `%USERPROFILE%\claude-theme-backup\`.
   ajustes del modo vim. Solo datos, ni una atadura.
 - `claude-40-keys.zsh` — el modo vim de la línea de comandos, la tira de ayuda sobre el
   prompt y el comando `claude-keys`. Ver [Los atajos de vim](#los-atajos-de-vim-y-cómo-se-aprenden).
-- `themes/claude.zsh-theme` — prompt de una línea: ruta teal (truncada a 3 tramos a
-  partir de 5 niveles), rama azul, estado git por colores, `❯` que se pone rojo si el
+- `themes/claude.zsh-theme` — prompt de una línea: ruta teal —dentro de un repo empieza
+  en él, con su nombre en negrita; fuera, truncada a 3 tramos a partir de 5 niveles—, rama azul, estado git por colores, `❯` que se pone rojo si el
   comando anterior falló, y a la derecha el código de salida y la duración si pasó de 2s.
-- En `.zshrc`: `ZSH_THEME`, los plugins `zsh-autosuggestions` y `zsh-syntax-highlighting`
-  (este último siempre el último de la lista, lo exige él), y `COLORTERM=truecolor`.
+- En `.zshrc`: `ZSH_THEME`, los plugins `fzf-tab`, `zsh-autosuggestions` y
+  `zsh-syntax-highlighting` —en ese orden: fzf-tab tiene que copiar el widget de Tab antes de
+  que autosuggestions lo envuelva, y el highlighter exige ir el último—, y `COLORTERM=truecolor`.
+
+**Fuente** — con `font.nerdGlyphs` en `true`, instala **Cascadia Code NF** para tu usuario
+(`%LOCALAPPDATA%\Microsoft\Windows\Fonts` y `HKCU`, sin elevar), desde la release fijada en
+`font.nerdSource` y cacheada en `~/.cache/claude-terminal-theme`. Comprueba al final que un
+proceso nuevo ve la familia. Windows Terminal hay que cerrarlo y abrirlo.
 
 **Windows Terminal** — esquema `Claude CLI` con los 16 ANSI, tema de ventana (la fila
 de pestañas deja de ser gris del sistema) y un bloque `profiles.defaults` que iguala
-todos los perfiles: Cascadia Code, padding, cursor bloque, sin acrílico, `intenseTextStyle`
+todos los perfiles: la fuente de `font.face`, padding, cursor bloque, sin acrílico, `intenseTextStyle`
 en `bright` para que la negrita use los tonos claros de la paleta.
 
 **PowerShell** — crea `Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1`
@@ -117,8 +123,8 @@ sale en resaltados, foco y menú Inicio, pero no pinta las barras de título sal
 pidas tú.
 
 **Barra de tareas** — de ancho completo, pegada abajo y **siempre visible**: iconos
-centrados, búsqueda reducida a icono, sin widgets, sin vista de tareas, nunca combinar
-botones.
+centrados, sin botón de búsqueda (busca Flow, `Ctrl+Space`), sin widgets, sin vista de
+tareas, nunca combinar botones.
 
 **Escritorio, Explorador y menús** — «Este equipo» visible, vista Detalles por defecto,
 espaciado compacto, extensiones a la vista y ocultos visibles; el menú Inicio con la
@@ -127,10 +133,19 @@ carpeta y de fondo de carpeta, con la ruta de `Code.exe` resuelta por búsqueda 
 cableada. Todo `HKCU` — ni siquiera el menú contextual necesita elevación, porque va a
 `HKCU\Software\Classes` y no a `HKCR`. Todo apuntado en el snapshot antes de tocarlo.
 
+**Fondo y bloqueo** — solo si la paleta trae `windowsDesktop.wallpaper`, y hoy solo lo
+trae el bloque `light`: el Bloom de Windows en verde salvia (`ThemeD\img33.jpg`, viene con
+el sistema), en el escritorio y en la pantalla de bloqueo. El Bloom azul de serie era lo
+único de ese azul en pantalla y peleaba con el acento teal. La imagen de bloqueo anterior
+no está en ningún valor de registro: se vuelca como fichero al snapshot y `--uninstall`
+la devuelve con la API de Windows.
+
 **Forma y color de la barra** (necesita [Windhawk](https://windhawk.net)) — sin tema base,
 `controlStyles` propios: fondo `#0A0D0F` de borde a borde, línea superior `#1A2026`,
 botón de app con radio 10 y relleno teal al 13% cuando está activo, indicador de app
-abierta en teal `#4DD6C1`.
+abierta en teal `#4DD6C1`. Los colores por estado (activo, hover, indicadores) no van por
+selector sino como **recursos de tema** que la plantilla de Windows ya usa: los selectores
+con estado del README del mod no casan en la build 26200 (ver HANDOFF).
 
 `cornerRadius` y `padding` van a **0** en `palette.json`, y no por descuido: el
 `Rectangle` del fondo vive *dentro* del padding del `RootGrid`, así que cualquier padding
@@ -226,6 +241,12 @@ Los siete glifos salen del diseño y no de la intuición:
 | Navegador | `◉` | morado |
 | Claude | `✦` | ámbar |
 | Ajustes | `⚙` | gris |
+
+**Y en la barra están apagados** (`pinnedIcons: stock`, desde el 16 de noviembre). Un glifo
+solo llega a un anclado que esté en esa lista; lo que abres sin anclar pone su propio
+icono. Así que la barra quedaba siempre mitad glifo plano, mitad icono de color — medido:
+dos y cuatro. `stock` devuelve a cada anclado el `IconLocation` que tenía, leído de su
+copia en el snapshot. El `❯` del botón de Inicio no entra en esto: sigue.
 
 Ese mod **no aparece en el catálogo** de windhawk.net ni en la pestaña Explore, aunque su
 página existe. Se instala pegando el fuente en *Create new mod*. Y ojo con sus valores por
@@ -372,9 +393,29 @@ puede traerte algo escrito en otra pestaña. A cambio no pierdes nada al cerrar.
 con la paleta: escribe `git comm` y encuentra el commit aunque no recuerdes el orden.
 `Ctrl+T` busca ficheros con vista previa coloreada, `Alt+C` salta de directorio.
 
-**Tabulación navegable.** `menu select` con flechas y `Shift+Tab` hacia atrás, matching
-insensible a mayúsculas y por trozos —`c-t<Tab>` completa `claude-terminal-theme`—, y
-los candidatos agrupados bajo epígrafes en ámbar en vez de un tapiz plano.
+**Tabulación en fzf.** Con [fzf-tab](https://github.com/Aloxaf/fzf-tab) instalado, Tab abre
+fzf con la paleta en vez del menú de zsh: filtras escribiendo, `<` y `>` saltan de grupo, y
+`cd <Tab>` enseña el contenido de cada directorio antes de entrar (con `bat`, `vim <Tab>`
+enseña el fichero). El matching sigue siendo insensible a mayúsculas y por trozos
+—`c-t<Tab>` completa `claude-terminal-theme`—. Sin fzf-tab queda el `menu select` de antes.
+
+**Moverse sin escribir rutas.**
+
+| | |
+|---|---|
+| `cd avanzapi-frontend` o `avanzapi-frontend` a secas | `cdpath` apunta a `~/projects` (o `~/proyectos`, `~/src`, `~/code`, el primero que exista); lo local gana |
+| `~p/echo` | la misma carpeta con nombre corto. Efecto visible: fuera de un repo el prompt la escribe `~p/…` |
+| `Alt+↑` `Alt+←` `Alt+→` | subir, volver, deshacer el volver — sin tocar la línea que tengas a medias |
+| `..` `...` `-` `1`…`9` | lo que ya traía oh-my-zsh: subir, subir dos, el anterior, la pila |
+| `z algo` / `zi` | zoxide: lo más visitado que encaje |
+
+Al entrar en un directorio se lista en rejilla, **con tope** de 12 filas y un «… N filas más»
+para el resto: en un `node_modules` lo que quieres es un vistazo, no el inventario.
+`CC_CD_LS_LINES=0` lo apaga. Solo en shells interactivas con terminal delante: un script que
+haga `cd` no recibe listados.
+
+Ojo con **Windows Terminal y Alt+flechas**: de serie mueven el foco entre paneles. Con un solo
+panel la tecla llega a la shell; con la pestaña partida se la queda el terminal.
 
 **Teclas que ya deberían venir puestas.** Inicio, Fin, Supr, `Ctrl+←/→` por palabras y
 `Ctrl+Retroceso` borrando una palabra atrás. `WORDCHARS` va sin la barra, así que
@@ -389,6 +430,7 @@ los candidatos agrupados bajo epígrafes en ámbar en vez de un tapiz plano.
 | `bat` | `cat` con sintaxis, y la vista previa del `Ctrl+T` | `BAT_THEME=ansi` |
 | `fd` | `find` usable, respeta `.gitignore` | — (alimenta a fzf) |
 | `zoxide` | `z proyectos` salta a lo más visitado | — |
+| `fzf-tab` | Tab abre fzf, con vista previa en `cd` | hereda `FZF_DEFAULT_OPTS`; grupos en el orden de la paleta |
 | `delta` | diffs de git legibles | argumentos en `GIT_PAGER` |
 | `gh` `lazygit` `btop` `duf` `httpie` `tldr` | el resto del lote | — |
 
@@ -401,23 +443,25 @@ Sobre `eza`: la tentación era darle *más* colores. No se hizo. La paleta asign
 **tipo de dato**, no por extensión, y eso es lo que permite que una ruta sea teal en el prompt,
 en `ls` y en `grep`. Lo que `eza` añade no son colores, es la **columna de git**.
 
-### Los iconos vienen apagados, y por qué
+### Los iconos, y la fuente que los hace posibles
 
 `eza --icons` dibuja con codepoints de la **zona de uso privado** (`U+E000`–`U+F8FF`), que es
-donde las Nerd Fonts meten sus glifos. `Cascadia Code` —la fuente que pone este tema— **no los
-tiene**, así que con los iconos encendidos sale un `?` por fichero.
+donde las Nerd Fonts meten sus glifos. `Cascadia Code` a secas **no los tiene**, así que con
+los iconos encendidos sale un `?` por fichero.
 
-Por eso el interruptor está en `palette.json` y no a fuego en el código:
+Por eso el interruptor está en `palette.json` y no a fuego en el código, y va a la par que la
+fuente:
 
 ```json
-"font": { "face": "Cascadia Code", "nerdGlyphs": false }
+"font": { "face": "Cascadia Code NF", "nerdGlyphs": true, "nerdSource": { … } }
 ```
 
-Con `nerdGlyphs: false` la capa 30 pasa `--icons=never`, y con `true`, `--icons=always`. Si quieres iconos: instala una Nerd
-Font, pon su nombre exacto en `face`, `nerdGlyphs` a `true` y relanza `./install.sh`. La
-variante oficial de Microsoft se llama **Cascadia Code NF** y sale de
+Con `nerdGlyphs: true` la capa 30 pasa `--icons=always` y el instalador pone la fuente (ver
+[Qué toca exactamente](#qué-toca-exactamente)); con `false`, `--icons=never` y no instala nada.
+Es la variante oficial de Microsoft, de
 [sus releases](https://github.com/microsoft/cascadia-code/releases) — no está en winget, que
-de Nerd Fonts solo trae JetBrainsMono.
+de Nerd Fonts solo trae JetBrainsMono. La versión va **fijada** en `nerdSource.url`: el zip son
+143 MB y la API de GitHub sin token corta a 60 llamadas por hora.
 
 **Nunca `--icons=auto`**, y por dos razones distintas. La obvia: el `auto` mira si hay terminal,
 no si hay glifos, así que no protege de nada aquí. La que costó encontrar: en **eza 0.18.2** —la
@@ -458,7 +502,9 @@ ya tenías instaladas no se tocan.
 ./install.sh --self-test     # no toca nada, solo mira
 ```
 
-63 invariantes: el historial, las teclas, los widgets de fzf, que `delta` ve la paleta, que
+75 invariantes: el historial, las teclas, los widgets de fzf, la navegación —Alt+flechas
+ejercitadas de verdad, fzf-tab atado a Tab, la ruta del prompt dentro de un repo, el listado al
+entrar y su tope—, que `delta` ve la paleta, que
 `palette.json` genera las seis superficies y que `ansi.cyan` sigue siendo el teal —de eso
 dependen `bat` y `delta`—. Sale con código 1 si algo falla, así que sirve para un hook o CI.
 
@@ -661,8 +707,8 @@ solo error: simplemente no hace nada. Detalle en [dotfiles/README.md](dotfiles/R
   ellos la capa `claude-30-tools.zsh` no hace nada y el shell arranca igual (`CTT_TOOLS=0`
   para no instalarlos)
 - la parte de Windows necesita WSL con `/mnt/c` montado e interop activo
-- el dock flotante necesita Windhawk con los mods *Windows 11 Taskbar Styler* y
-  *Windows 11 Start Menu Styler* instalados
+- la barra, Inicio, el reloj y la bandeja necesitan Windhawk con sus mods instalados; la
+  lista está en `windows/mods.json` y el instalador dice cuáles faltan y cómo buscarlos
 - **opcional**: AutoHotkey v2 para los atajos de ventanas. El instalador lo ofrece por
   winget; sin él, el modo vim de la shell funciona igual y el paso de Windows se salta
   diciéndolo
