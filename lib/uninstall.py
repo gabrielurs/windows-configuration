@@ -79,6 +79,21 @@ def _stop_flow(dry: bool) -> None:
         print("  Flow Launcher parado")
 
 
+def _bat_cache(dry: bool) -> None:
+    """bat guarda en caché los temas que encontró: borrados los nuestros, la caché
+    seguiría ofreciéndolos. Se reconstruye, o se vacía si ya no queda ninguno."""
+    import shutil
+    bat = shutil.which("bat") or shutil.which("batcat")
+    if not bat:
+        return
+    cfg = subprocess.run([bat, "--config-dir"], capture_output=True, text=True).stdout.strip()
+    left = list(pathlib.Path(cfg, "themes").glob("*.tmTheme")) if cfg else []
+    action = "--build" if left else "--clear"
+    print(f"  bat cache {action}")
+    if not dry:
+        subprocess.run([bat, "cache", action], capture_output=True)
+
+
 def run(dry: bool = False, win_home: pathlib.Path | None = None) -> bool:
     snap = state.Snapshot(dry=dry)
     if not snap.exists:
@@ -102,6 +117,7 @@ def run(dry: bool = False, win_home: pathlib.Path | None = None) -> bool:
     # El registro ya tiene el fondo de antes, pero escribirlo no repinta; y la
     # imagen de bloqueo no está en el registro. Las dos van por la API.
     wallpaper.restore(snap, win_home, dry)
+    _bat_cache(dry)
     print(f"\n{ok} restaurados, {bad} con problemas")
 
     if admin:

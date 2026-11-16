@@ -294,7 +294,9 @@ panel (medido, su fondo es `#07090A`), pero la lupa es un icono **bicolor**, `#0
 azul con verde, así que no es un glifo monocromo al que cambiarle `Glyph` y `Foreground`.
 Ahí se acaba lo que el styler puede hacer.
 
-Así que en vez de seguir peleándose con él, el tema pone al lado uno que sí obedece:
+Así que en vez de seguir peleándose con él, el tema pone al lado uno que sí obedece, y le
+da el sitio de Inicio: la tecla Win sola, Win+S y el clic en el botón de Inicio lo abren
+(`startOpensFlow`, vía AutoHotkey). El Inicio de Windows sigue en Mayús+clic y Ctrl+Esc:
 **Flow Launcher**, cuyos temas son ficheros XAML sueltos. `lib/flow.py` genera el suyo
 desde `palette.json`, igual que el resto del repo genera el `.zsh-theme` o el perfil de
 PowerShell — un solo sitio donde cambiar un color.
@@ -427,17 +429,23 @@ panel la tecla llega a la shell; con la pestaña partida se la queda el terminal
 |---|---|---|
 | `fzf` | el `Ctrl+R`, el `Ctrl+T` y el salto de directorio | `FZF_DEFAULT_OPTS` desde `CC_HEX_*` |
 | `eza` | `ls` con estado de git **por fichero** (iconos: ver abajo) | `EZA_COLORS`, mismo esquema semántico |
-| `bat` | `cat` con sintaxis, y la vista previa del `Ctrl+T` | `BAT_THEME=ansi` |
+| `bat` | `cat` con sintaxis, y la vista previa del `Ctrl+T` | tema `claude-light` / `claude-dark`, generado |
 | `fd` | `find` usable, respeta `.gitignore` | — (alimenta a fzf) |
 | `zoxide` | `z proyectos` salta a lo más visitado | — |
 | `fzf-tab` | Tab abre fzf, con vista previa en `cd` | hereda `FZF_DEFAULT_OPTS`; grupos en el orden de la paleta |
 | `delta` | diffs de git legibles | argumentos en `GIT_PAGER` |
 | `gh` `lazygit` `btop` `duf` `httpie` `tldr` | el resto del lote | — |
 
-**El truco de `bat` y `delta` es el mismo, y es el que hace que esto no se desincronice.**
-`ansi` no es un tema propio: pinta con los 16 colores del terminal, y en `palette.json` esos
-16 **son** la paleta (`ansi.cyan` es el teal `#4DD6C1`). O sea que ni `bat` ni `delta` llevan
-fichero de tema: cambias un hex en `palette.json`, relanzas `./install.sh`, y siguen al resto.
+**`bat` y `delta` usan el mismo tema, y sale de `palette.json`.** `render.py bat-theme-light`
+y `bat-theme-dark` escriben un `.tmTheme` con los roles de la paleta: palabras clave en
+morado, strings en ámbar, funciones en azul, tipos en teal, números en naranja, operadores
+y puntuación en el texto apagado, y comentarios en gris y en **cursiva** —la caligráfica de
+Cascadia, `ss01`—. Antes era el tema `ansi`, que pinta con los 16 colores del terminal pero
+con su propio reparto: los comentarios salían verdes, como los strings. La shell elige el
+claro o el oscuro según `CC_MODE` (Windows Terminal o VS Code), y vuelve a `ansi` si el tema
+no está instalado. En `delta`, la palabra cambiada va en verde en las altas y en rojo en las
+bajas. Dos detalles medidos: `bat` trae la cursiva apagada (`--italic-text=never`) y no hay
+variable para encenderla, así que va en el alias; y `delta` ignora la cursiva del tema.
 
 Sobre `eza`: la tentación era darle *más* colores. No se hizo. La paleta asigna un color por
 **tipo de dato**, no por extensión, y eso es lo que permite que una ruta sea teal en el prompt,

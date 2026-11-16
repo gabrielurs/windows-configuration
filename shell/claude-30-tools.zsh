@@ -43,7 +43,7 @@ if (( $+commands[fzf] )); then
   # Ctrl+T con vista previa: bat si está, cat si no.
   if (( $+commands[batcat] || $+commands[bat] )); then
     _ccbat=batcat; (( $+commands[bat] )) && _ccbat=bat
-    export FZF_CTRL_T_OPTS="--preview '$_ccbat --style=numbers --color=always --theme=ansi {} 2>/dev/null || cat {}' --preview-window=right:60%:border-left"
+    export FZF_CTRL_T_OPTS="--preview '$_ccbat --style=numbers --color=always --italic-text=always {} 2>/dev/null || cat {}' --preview-window=right:60%:border-left"
     unset _ccbat
   fi
   # Alt+C enseña el árbol a dos niveles, que es lo que dice si ese es el
@@ -105,7 +105,7 @@ if (( $+commands[fzf] )); then
     if (( $+commands[batcat] || $+commands[bat] )); then
       _ccbat=batcat; (( $+commands[bat] )) && _ccbat=bat
       zstyle ':fzf-tab:complete:(bat|batcat|cat|less|vim|nvim|code):*' fzf-preview \
-        "[[ -d \$realpath ]] && ls -1 --color=always \$realpath || $_ccbat --style=numbers --color=always --theme=ansi --line-range=:200 \$realpath 2>/dev/null"
+        "[[ -d \$realpath ]] && ls -1 --color=always \$realpath || $_ccbat --style=numbers --color=always --italic-text=always --line-range=:200 \$realpath 2>/dev/null"
       unset _ccbat
     fi
   fi
@@ -165,11 +165,22 @@ xx=${CC_GREY}"
 fi
 
 # ── bat ───────────────────────────────────────────────────────────────
-# El tema «ansi» pinta con los 16 colores del terminal, que en palette.json SON
-# la paleta (ansi.cyan es el teal). O sea: bat sigue al tema solo, sin .tmTheme.
+# Tema propio, generado desde la paleta (`render.py bat-theme-light|dark`, lo
+# instala install.sh): el claro en Windows Terminal y el oscuro en VS Code,
+# según CC_MODE. El «ansi» de antes pinta con los 16 colores del terminal pero
+# con su propio reparto: los comentarios salían verdes, como los strings. Si el
+# tema no está instalado, ansi, que al menos sigue a la paleta.
 if (( $+commands[batcat] || $+commands[bat] )); then
-  (( $+commands[bat] )) || alias bat='batcat'
-  export BAT_THEME=ansi
+  _ccbat=batcat; (( $+commands[bat] )) && _ccbat=bat
+  # bat trae la cursiva apagada (--italic-text=never) y no hay variable de
+  # entorno para encenderla: sin esto los comentarios no salen en cursiva.
+  alias bat="$_ccbat --italic-text=always"
+  unset _ccbat
+  if [[ -f "${XDG_CONFIG_HOME:-$HOME/.config}/bat/themes/claude-${CC_MODE:-dark}.tmTheme" ]]; then
+    export BAT_THEME="claude-${CC_MODE:-dark}"
+  else
+    export BAT_THEME=ansi
+  fi
   export BAT_STYLE='numbers,changes,header'
   # `cat` se deja en paz a propósito: aliasarlo rompe las tuberías de quien
   # espera texto pelado. Para leer con colores, `bat`.
@@ -196,7 +207,7 @@ fi
 if (( $+commands[delta] )); then
   export DELTA_PAGER="less -R"
   export GIT_PAGER="delta \
-    --syntax-theme=ansi \
+    --syntax-theme=${BAT_THEME:-ansi} \
     --line-numbers --navigate --hyperlinks \
     --file-style='${CC_HEX_TEAL} bold' \
     --file-decoration-style='${CC_HEX_BORDER} ul' \
@@ -208,8 +219,8 @@ if (( $+commands[delta] )); then
     --line-numbers-minus-style='${CC_HEX_RED}' \
     --plus-style='syntax ${CC_HEX_DIFFPLUS}' \
     --minus-style='syntax ${CC_HEX_DIFFMINUS}' \
-    --plus-emph-style='syntax ${CC_HEX_SELECTION}' \
-    --minus-emph-style='syntax ${CC_HEX_SELECTION}'"
+    --plus-emph-style='syntax ${CC_HEX_DIFFPLUSEMPH:-$CC_HEX_SELECTION}' \
+    --minus-emph-style='syntax ${CC_HEX_DIFFMINUSEMPH:-$CC_HEX_SELECTION}'"
 fi
 
 # ── tldr ──────────────────────────────────────────────────────────────

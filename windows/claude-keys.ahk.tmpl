@@ -26,6 +26,8 @@ BG           := "@@BG@@"
 BORDER       := "@@BORDER@@"
 KEYCOLOR     := "@@KEYCOLOR@@"
 DESCCOLOR    := "@@DESCCOLOR@@"
+START_FLOW   := @@START_FLOW@@
+FLOW_KEYS    := @@FLOW_KEYS@@
 HINTFILE     := EnvGet("LOCALAPPDATA") "\claude-terminal-theme\hints"
 ICON_IDLE    := A_ScriptDir "\keys-idle.ico"
 ICON_ACTIVE  := A_ScriptDir "\keys-active.ico"
@@ -503,4 +505,49 @@ GoToDesktop(n) {
     key := (n > cur) ? "{Right}" : "{Left}"
     loop Abs(n - cur)
         Send("^#" key)
+}
+
+; ── Inicio abre Flow ──────────────────────────────────────────────────
+; Con START_FLOW (palette.json → windowsDesktop.launcher.startOpensFlow) el
+; buscador ocupa el sitio del menú Inicio:
+;   · Win sola abre Flow. Win+E, Win+L, Win+X… siguen igual: el ~ deja pasar la
+;     tecla, y el vkE8 —un código que no está asignado a nada— hace de «otra
+;     tecla pulsada con Win», así que Windows no abre Inicio al soltarla.
+;     A_PriorKey no cuenta lo que manda el propio script: si al soltar Win la
+;     última tecla sigue siendo Win, es que se pulsó sola.
+;   · Win+S, que era la búsqueda de Windows, también.
+;   · El clic izquierdo en el botón de Inicio, también. Mayús+clic no casa con
+;     este atajo y llega a Windows: ahí, y en Ctrl+Esc, sigue el Inicio de
+;     siempre. El clic derecho —el menú Win+X— no se toca.
+#HotIf START_FLOW
+~LWin:: Send("{Blind}{vkE8}")
+~RWin:: Send("{Blind}{vkE8}")
+~LWin Up:: OpenFlowIfAlone("LWin")
+~RWin Up:: OpenFlowIfAlone("RWin")
+#s:: Send(FLOW_KEYS)
+#HotIf START_FLOW && OverStartButton()
+LButton:: Send(FLOW_KEYS)
+#HotIf
+
+OpenFlowIfAlone(key) {
+    if (A_PriorKey = key)
+        Send(FLOW_KEYS)
+}
+
+; ¿Está el ratón sobre el botón de Inicio? No hay forma de preguntárselo al
+; botón —es XAML dentro de la barra—, así que va por geometría: está pegado a la
+; izquierda (taskbar-start-button-position) y mide lo que la barra de alto, más
+; el margen. Medido: x de 0 a 54 con la barra a 50. Vale para la barra de cada
+; pantalla, que en las secundarias se llama Shell_SecondaryTrayWnd.
+OverStartButton() {
+    CoordMode("Mouse", "Screen")
+    MouseGetPos(&x, &y, &win)
+    try {
+        cls := WinGetClass(win)
+        if (cls != "Shell_TrayWnd" && cls != "Shell_SecondaryTrayWnd")
+            return false
+        WinGetPos(&wx, &wy, &ww, &wh, win)
+        return (x - wx) < wh + 6
+    }
+    return false
 }

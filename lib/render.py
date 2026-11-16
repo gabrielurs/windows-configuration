@@ -115,6 +115,14 @@ def _palette_zsh_vars(p: dict) -> list[str]:
     # compañía los usan para sus iconos, y Cascadia Code a secas NO los tiene:
     # sin esto salen todos como «?».
     out.append(f"typeset -g CC_NERD_GLYPHS='{1 if p['font'].get('nerdGlyphs') else 0}'")
+    # La palabra cambiada de un diff (delta): el color de la línea —verde en las
+    # altas, rojo en las bajas— al 15% sobre su fondo. Antes iba en el gris de la
+    # selección en las dos, y una baja no se distinguía de una alta. Más del 15%
+    # destaca más pero hunde la sintaxis de encima por debajo de 3:1 (medido).
+    sf, ro = p["surfaces"], p["roles"]
+    if "diffPlus" in sf and "diffMinus" in sf:
+        out.append(f"typeset -g CC_HEX_DIFFPLUSEMPH='{mix(ro['green']['hex'], sf['diffPlus'], 0.15)}'")
+        out.append(f"typeset -g CC_HEX_DIFFMINUSEMPH='{mix(ro['red']['hex'], sf['diffMinus'], 0.15)}'")
     out.append(f"typeset -g CC_BG_SEL='{sgr(p['surfaces']['selection'], 'bg')}'")
     out.append(f"typeset -g CC_BG_DARK='{sgr(p['surfaces']['bgAlt'], 'bg')}'")
     out.append("")
@@ -150,10 +158,12 @@ def wt_theme(p: dict) -> dict:
 def wt_defaults(p: dict) -> dict:
     return {
         "colorScheme": p["name"],
-        "font": {"face": p["font"]["face"], "size": p["font"]["sizeTerminal"], "weight": "normal"},
+        "font": {"face": p["font"]["face"], "size": p["font"]["sizeTerminal"], "weight": "normal",
+                 **({"cellHeight": p["font"]["cellHeight"]} if p["font"].get("cellHeight") else {}),
+                 **({"features": p["font"]["features"]} if p["font"].get("features") else {})},
         "padding": "14, 10, 14, 10",
         "cursorShape": "filledBox",
-        "antialiasingMode": "grayscale",
+        "antialiasingMode": p["font"].get("antialiasing", "grayscale"),
         "scrollbarState": "hidden",
         "useAcrylic": False,
         "opacity": 100,
@@ -185,11 +195,97 @@ def vscode_colors(p: dict) -> dict:
     return out
 
 
+def contrast(a: str, b: str) -> float:
+    """Contraste WCAG entre dos hex."""
+    def lum(h: str) -> float:
+        def ch(c: int) -> float:
+            c /= 255
+            return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+        r, g, b_ = rgb(h)
+        return 0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b_)
+    hi, lo = sorted((lum(a), lum(b)), reverse=True)
+    return (hi + 0.05) / (lo + 0.05)
+
+
 def mix(fg: str, bg: str, a: float) -> str:
     """`fg` al `a` sobre `bg`, en sRGB. Así se derivan los fondos de diff y los
     tintes: no se eligen a ojo."""
     f, b = rgb(fg), rgb(bg)
     return "#" + "".join(f"{round(y * (1 - a) + x * a):02X}" for x, y in zip(f, b))
+
+
+# Qué color lleva cada cosa en el código, por rol de la paleta. Se buscó que
+# se lea como el resto del tema —ámbar para los literales, como en la línea de
+# comandos; morado para lo que es del lenguaje— y que lo que no es dato se
+# aparte: comentarios en gris y en cursiva, operadores y puntuación en el
+# color del texto apagado.
+BAT_SCOPES = [
+    ("Comentario", "comment, punctuation.definition.comment", "grey", "italic"),
+    ("Cadena", "string, punctuation.definition.string, string.quoted", "amber", ""),
+    ("Escape", "constant.character.escape, string.regexp", "orange", ""),
+    ("Número y constante", "constant.numeric, constant.language, constant.other, support.constant", "orange", ""),
+    ("Palabra clave", "keyword, storage, storage.type, storage.modifier, keyword.control", "purple", ""),
+    ("Operador y puntuación", "keyword.operator, punctuation.separator, punctuation.terminator, "
+     "punctuation.accessor, punctuation.section, meta.brace", "@fgDim", ""),
+    ("Función", "entity.name.function, support.function, meta.function-call variable.function, "
+     "variable.function", "blue", ""),
+    ("Tipo y clase", "entity.name.type, entity.name.class, support.type, support.class, "
+     "entity.other.inherited-class, storage.type.class", "teal", ""),
+    ("self, this", "variable.language", "purple", "italic"),
+    ("Parámetro", "variable.parameter", "@fg", "italic"),
+    ("Clave de objeto", "support.type.property-name, meta.object-literal.key, "
+     "meta.mapping.key string, entity.name.tag.yaml", "green", ""),
+    ("Etiqueta", "entity.name.tag", "blue", ""),
+    ("Atributo", "entity.other.attribute-name", "teal", ""),
+    ("Decorador", "meta.decorator, entity.name.function.decorator, punctuation.definition.annotation",
+     "orange", ""),
+    ("Variable de shell", "variable.other.normal.shell, variable.other.special.shell, "
+     "punctuation.definition.variable", "green", ""),
+    ("Título", "markup.heading, entity.name.section", "teal", "bold"),
+    ("Negrita", "markup.bold", "@fg", "bold"),
+    ("Cursiva", "markup.italic", "@fg", "italic"),
+    ("Código en línea", "markup.raw, markup.inline.raw", "green", ""),
+    ("Enlace", "markup.underline.link, string.other.link", "blue", "underline"),
+    ("Cita", "markup.quote", "grey", "italic"),
+    ("Lista", "punctuation.definition.list, markup.list.numbered punctuation", "purple", ""),
+    ("Alta", "markup.inserted", "green", ""),
+    ("Baja", "markup.deleted", "red", ""),
+    ("Cambio", "markup.changed", "amber", ""),
+    ("Cabecera de diff", "meta.diff.header, meta.diff.range", "blue", ""),
+    ("Inválido", "invalid", "red", "underline"),
+]
+
+
+def bat_theme(p: dict, name: str) -> str:
+    """Un .tmTheme para bat (y delta, que usa los de bat) sacado de la paleta.
+
+    El tema `ansi` que se usaba antes pinta con los 16 colores del terminal,
+    pero con un reparto fijo que no es el de la paleta: los comentarios salían
+    verdes, como los strings, y los operadores morados como las palabras clave.
+    """
+    import plistlib
+    s, ro = p["surfaces"], p["roles"]
+
+    def color(ref: str) -> str:
+        c = s[ref[1:]] if ref.startswith("@") else ro[ref]["hex"]
+        # El gris de los comentarios es el de las flechas y separadores, y en
+        # oscuro da 4.32:1 sobre el fondo. Un comentario se lee: si no llega a
+        # 4.5, el texto apagado de la paleta.
+        if ref == "grey" and contrast(c, s["bg"]) < 4.5:
+            c = s["fgDim"]
+        return c
+
+    rules = [{"settings": {
+        "background": s["bg"], "foreground": s["fg"], "caret": s["fg"],
+        "selection": s["selection"], "lineHighlight": s.get("bgPanel", s["bg"]),
+        "gutterForeground": s["ghost"], "invisibles": s["ghost"],
+    }}]
+    for label, scope, ref, style in BAT_SCOPES:
+        st = {"foreground": color(ref)}
+        if style:
+            st["fontStyle"] = style
+        rules.append({"name": label, "scope": scope, "settings": st})
+    return plistlib.dumps({"name": name, "settings": rules}).decode()
 
 
 def claude_theme(p: dict) -> dict:
@@ -376,6 +472,15 @@ def _ahk_str(s: str) -> str:
     return '"' + s.replace('"', '""') + '"'
 
 
+def ahk_send(hotkey: str) -> str:
+    """«Ctrl + Space» (como lo guarda Flow) → «^{Space}» (como lo manda AutoHotkey)."""
+    mods = {"ctrl": "^", "alt": "!", "shift": "+", "win": "#"}
+    parts = [t.strip() for t in hotkey.split("+") if t.strip()]
+    pre = "".join(mods[t.lower()] for t in parts[:-1])
+    key = parts[-1]
+    return pre + (key.lower() if len(key) == 1 else "{" + key + "}")
+
+
 def ahk_substitutions(p: dict) -> dict[str, str]:
     """Placeholders @@NOMBRE@@ del script de AutoHotkey."""
     k, s, ro = p["keys"], p["surfaces"], p["roles"]
@@ -413,6 +518,8 @@ def ahk_substitutions(p: dict) -> dict[str, str]:
         "DESCCOLOR":     bare(ro["grey"]["hex"]),
         "MODES":         "\n".join(modes),
         "APPS":          "\n".join(apps) or ";  (sin apps definidas en palette.json)",
+        "START_FLOW":    "1" if p["windowsDesktop"]["launcher"].get("startOpensFlow") else "0",
+        "FLOW_KEYS":     _ahk_str(ahk_send(p["windowsDesktop"]["launcher"].get("hotkey", "Ctrl + Space"))),
     }
 
 
@@ -433,6 +540,12 @@ if __name__ == "__main__":
     elif what == "claude-theme":
         json.dump(claude_theme(pal), sys.stdout, indent=2, ensure_ascii=False)
         sys.stdout.write("\n")
+    elif what in ("bat-theme-light", "bat-theme-dark"):
+        mode = what.rsplit("-", 1)[1]
+        # El claro sale del bloque `light` aunque terminalMode esté en dark: el
+        # tema que se elige en cada terminal lo decide la shell (CC_MODE).
+        tp = terminal(dict(pal, terminalMode="light")) if mode == "light" else pal
+        sys.stdout.write(bat_theme(tp, f"claude-{mode}"))
     elif what == "keys.ahk":
         for k, v in ahk_substitutions(desktop(pal)).items():
             print(f"{k}\t{v}")

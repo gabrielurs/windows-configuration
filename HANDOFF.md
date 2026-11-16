@@ -127,6 +127,33 @@ se aplican al reiniciar explorer**, no en caliente como los `controlStyles`. UI 
 no sirve para sacar clases: da la del *automation peer* (`ToggleButton`,
 `TaskListButtonAutomationPeer`), no la XAML.
 
+### Inicio abre Flow: para probarlo, tiempos de mano, no de máquina
+
+Win sola, Win+S y el clic en el botón de Inicio abren Flow (`claude-keys.ahk`, sección
+«Inicio abre Flow»). El Inicio de Windows sigue en Mayús+clic y Ctrl+Esc. Medido el 16 de
+noviembre, viendo qué proceso queda en primer plano: Win → Flow, Win+S → Flow, Win+B →
+la barra (las combinaciones siguen), clic → Flow, Mayús+clic → `SearchHost`, Ctrl+Esc →
+`SearchHost`.
+
+**La trampa:** con `keybd_event` bajando y subiendo Win en el mismo instante, Inicio se
+abría igual. El `vkE8` que lo enmascara lo manda el hilo del script, y llega cuando Win ya
+está suelta. Con 90 ms entre bajar y subir —una mano— va. Antes de dar por roto un atajo
+de esta sección, mirar los tiempos de la prueba. Y otra: el `FileAppend` a fichero de un
+script lanzado con `Start-Process` no dejaba rastro; con `/ErrorStdOut` y `"*"` sí.
+
+### Tipografía del terminal: lo que no era lo que parecía
+
+- `font.cellHeight` **por defecto no es 1.0**: es la altura natural de la fuente, que en
+  Cascadia es 1.162 em (17 px a 11 pt), y el schema de Windows Terminal dice que «suele
+  quedar muy cerca de 1.2». Poner 1.2 apenas cambia 1 px. Va en 1.3: 19 px.
+- La cursiva caligráfica (`ss01`) solo la trae `CascadiaCodeNFItalic.ttf` —mirado con
+  fontTools—, así que `features: {ss01: 1}` no toca el texto recto.
+- `bat` no pinta cursivas si no se le pide (`--italic-text=always`), y solo admite por
+  entorno `BAT_THEME`, `BAT_STYLE`, `BAT_PAGER` y `BAT_PAGING`: el flag va en el alias y en
+  las vistas previas de fzf. `delta` usa el tema de bat pero ignora su cursiva.
+- delta no lee una caché de bat aislada con `BAT_CACHE_PATH`: para probar un tema nuevo con
+  delta hay que instalarlo de verdad (`bat cache --build`).
+
 ### Explorer reescribe lo que le toques mientras vive
 
 El blob `Favorites` de los anclados se vuelca al cerrarse. **Matar explorer ANTES de

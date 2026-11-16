@@ -99,6 +99,20 @@ install_shell() {
   [[ $DRY -eq 1 ]] || python3 "$ROOT/lib/render.py" palette.zsh > "$CUSTOM/claude-00-palette.zsh"
   step "claude-35-keymap.zsh (generado desde palette.json)"
   [[ $DRY -eq 1 ]] || python3 "$ROOT/lib/render.py" keymap.zsh > "$CUSTOM/claude-35-keymap.zsh"
+  # Temas de resaltado de bat (y de delta, que usa los de bat), claro y oscuro.
+  local batbin battheme
+  batbin=$(command -v bat || command -v batcat)
+  if [[ -n $batbin ]]; then
+    battheme="$("$batbin" --config-dir)/themes"
+    run mkdir -p "$battheme"
+    snap_files "$battheme/claude-light.tmTheme" "$battheme/claude-dark.tmTheme"
+    step "temas de bat claude-light y claude-dark (generados desde palette.json)"
+    if [[ $DRY -eq 0 ]]; then
+      python3 "$ROOT/lib/render.py" bat-theme-light > "$battheme/claude-light.tmTheme"
+      python3 "$ROOT/lib/render.py" bat-theme-dark > "$battheme/claude-dark.tmTheme"
+      "$batbin" cache --build >/dev/null || warn "bat cache --build falló: bat seguirá con ansi"
+    fi
+  fi
   # El número del nombre es el orden de carga: oh-my-zsh sourcea $ZSH_CUSTOM/*.zsh
   # alfabéticamente, así que 30 ve lo que definieron 00, 10 y 20.
   local layer

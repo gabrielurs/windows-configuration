@@ -358,7 +358,13 @@ def check_shell(r: Report, pal: dict) -> str:
         r.skip("atajos de fzf", "fzf no instalado")
 
     if shutil.which("bat") or shutil.which("batcat"):
-        r.check("bat sigue los ANSI del terminal", f.get("bat_theme") == "ansi",
+        # El tema propio del modo de la shell; ansi solo si no está instalado.
+        bat = shutil.which("bat") or shutil.which("batcat")
+        mode = ("light" if pal.get("terminalMode") == "light"
+                and os.environ.get("TERM_PROGRAM") != "vscode" else "dark")
+        cfg = subprocess.run([bat, "--config-dir"], capture_output=True, text=True).stdout.strip()
+        want = f"claude-{mode}" if pathlib.Path(cfg, "themes", f"claude-{mode}.tmTheme").exists() else "ansi"
+        r.check(f"bat usa el tema del modo ({want})", f.get("bat_theme") == want,
                 f.get("bat_theme", ""))
     else:
         r.skip("tema de bat", "bat no instalado")
@@ -662,6 +668,12 @@ def check_keys_windows(r: Report, pal: dict) -> None:
     r.check("el interruptor se lee sin el salto de línea",
             'Trim(FileRead(HINTFILE), " `t`r`n")' in src)
 
+    # Inicio abre Flow: sin el ~ la tecla Win dejaría de llegar a Windows y
+    # Win+E, Win+L… morirían; sin el vkE8, Inicio se abriría encima de Flow.
+    if pal["windowsDesktop"]["launcher"].get("startOpensFlow"):
+        r.check("Inicio abre Flow: Win sola, Win+S y el clic",
+                all(t in src for t in ("~LWin:: Send(\"{Blind}{vkE8}\")", "~LWin Up::",
+                                       "#s:: Send(FLOW_KEYS)", "&& OverStartButton()")))
     _ahk_loads(r, pal, src)
 
 
@@ -884,6 +896,32 @@ def check_light(r: Report, pal: dict) -> None:
         tmp.unlink(missing_ok=True)
         r.check("claro: la paleta de zsh es zsh válido", p.returncode == 0, p.stderr.strip()[:60])
     check_desktop_choices(r, pal)
+    check_bat_themes(r, pal)
+
+
+def check_bat_themes(r: Report, pal: dict) -> None:
+    """El tema de código: cada color se lee sobre su fondo, y el instalado es el
+    que sale de la paleta (si no, alguien lo tocó a mano o no se regeneró)."""
+    import plistlib
+    for mode in ("light", "dark"):
+        tp = render.terminal(dict(pal, terminalMode="light")) if mode == "light" else pal
+        src = render.bat_theme(tp, f"claude-{mode}")
+        d = plistlib.loads(src.encode())
+        bg = d["settings"][0]["settings"]["background"]
+        bad = [f"{x['name']} {x['settings']['foreground']} {render.contrast(x['settings']['foreground'], bg):.2f}"
+               for x in d["settings"][1:] if render.contrast(x["settings"]["foreground"], bg) < 4.5]
+        r.check(f"bat {mode}: todo >= 4.5:1 sobre el fondo", not bad, "; ".join(bad[:3]))
+        bat = shutil.which("bat") or shutil.which("batcat")
+        if not bat:
+            r.skip(f"bat {mode}: instalado == generado", "bat no está")
+            continue
+        cfg = subprocess.run([bat, "--config-dir"], capture_output=True, text=True).stdout.strip()
+        f = pathlib.Path(cfg, "themes", f"claude-{mode}.tmTheme")
+        if f.exists():
+            r.check(f"bat {mode}: instalado == generado", f.read_text() == src,
+                    f"python3 lib/render.py bat-theme-{mode} > {f}")
+        else:
+            r.skip(f"bat {mode}: instalado == generado", f"no está en {f}")
 
 
 def check_desktop_choices(r: Report, pal: dict) -> None:

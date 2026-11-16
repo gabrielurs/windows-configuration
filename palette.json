@@ -103,6 +103,12 @@
     "face": "Cascadia Code NF",
     "sizeTerminal": 11,
     "sizeVSCode": 13,
+    "cellHeight": "1.3",
+    "_cellHeightNote": "Interlineado de Windows Terminal, como el line-height de CSS. Sin el, la altura natural de Cascadia: 1.162 em, 17 px a 11 pt. 1.2 apenas se nota (18 px); 1.3 da 19 px y 6 lineas menos por cada 1000 px de alto.",
+    "features": {"ss01": 1},
+    "_featuresNote": "ss01 es la cursiva caligrafica de Cascadia: solo la trae CascadiaCodeNFItalic.ttf, asi que solo cambia lo que va en cursiva (los comentarios del tema de bat). Medido con fontTools.",
+    "antialiasing": "cleartype",
+    "_antialiasingNote": "A 96 ppp el suavizado en gris deja el texto oscuro sobre claro fino y borroso; ClearType es lo que usa el resto de Windows. grayscale | cleartype | aliased.",
     "nerdGlyphs": true,
     "nerdSource": {
       "_comment": "De donde sale la fuente cuando nerdGlyphs va en true. La variante NF oficial de Microsoft: no esta en winget. Version FIJADA a proposito —el zip son 143 MB y no se quiere depender de la API de GitHub, que sin token corta a 60 llamadas por hora—; se cachea en ~/.cache/claude-terminal-theme. files: miembro del zip -> nombre del valor en HKCU\\...\\Fonts.",
@@ -363,6 +369,8 @@
     "launcher": {
       "_comment": "Buscador flotante estilo Spotlight. Windows no trae nada asi y su Win+S no se deja pintar —la lupa es un icono bicolor que el styler no toca—, asi que en vez de pelearse con el se pone al lado uno que si obedece.",
       "hotkey": "Ctrl + Space",
+      "startOpensFlow": true,
+      "_startNote": "Win sola, Win+S y el clic en el boton de Inicio abren Flow (AutoHotkey, claude-keys.ahk). El Inicio de Windows sigue en Mayus+clic y Ctrl+Esc; el clic derecho sigue siendo el menu Win+X.",
       "font": "Cascadia Mono",
       "cornerRadius": 12
     }
