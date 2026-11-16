@@ -5,6 +5,16 @@
   "_windowsModeNote": "light | dark. El ESCRITORIO: barra, Inicio, notificaciones, Explorador, Flow, la banda de AutoHotkey, los iconos anclados, el acento y el modo de apps de Windows (AppsUseLightTheme / SystemUsesLightTheme, que el instalador escribe a juego). En light, el bloque `light` se superpone a esta paleta (lib/render.py:desktop). Cambiar de modo desde Configuración de Windows NO basta: los mods de Windhawk llevan los colores escritos y seguirían en el modo anterior. Se cambia aquí y se relanza ./install.sh --windows.",
   "terminalMode": "light",
   "_terminalModeNote": "light | dark, independiente del escritorio. Windows Terminal (esquema y tema de ventana), PowerShell y zsh, con el mismo bloque `light` encima (lib/render.py:terminal). VS Code NO: su workbench es oscuro (Abyss) y su terminal se queda con la paleta oscura; y como zsh es el mismo dentro y fuera, claude-00-palette.zsh lleva las dos y elige por TERM_PROGRAM=vscode al arrancar. Una shell ya abierta no cambia: `exec zsh`. El tema de Claude Code va aparte, en su settings.json (custom:terminal o custom:terminal-light).",
+  "notify": {
+    "afterSeconds": 30,
+    "_note": "Un comando que tarda mas que esto avisa al terminar: la shell manda el timbre y Windows Terminal hace parpadear su icono en la barra de tareas (bellStyle taskbar), que solo se ve con la ventana sin foco. Sin sonido. 0 o sin la clave: el timbre queda apagado del todo, como antes. Ojo: tambien avisa al salir de un programa que tuviste abierto mas de ese tiempo (vim, btop, una sesion de claude)."
+  },
+  "tmux": {
+    "autostart": true,
+    "keys": true,
+    "_keysNote": "Modo copia con teclas de vim (v selecciona, y copia) y dividir/abrir ventana en la carpeta del panel. No cambia el prefijo (Ctrl+B) ni anade teclas nuevas: las de serie, con otro destino.",
+    "_note": "true: cada pestana de Windows Terminal entra sola en tmux, una sesion por pestana que muere al cerrarla (shell/claude-05-tmux.zsh). Solo en Windows Terminal: ni VS Code, ni ssh, ni las shells de Claude Code. Costes: dentro de tmux no van el salto entre prompts (Ctrl+flecha arriba) ni el duplicar panel en la misma carpeta, que son del terminal; la rueda la gestiona tmux y para seleccionar como antes hace falta Mayus+arrastrar. En caliente, sin reinstalar: `claude-tmux off`."
+  },
   "surfaces": {
     "bg": "#07090A",
     "bgAlt": "#0A0D0F",
@@ -291,9 +301,17 @@
       "combineButtons": "always",
       "_combineNote": "El diseno pide «nunca combinar», pero en Windows eso significa etiqueta junto a cada icono: con diez ventanas abiertas son diez titulos truncados que se comen la barra. always = solo el icono. Valores: always | whenFull | never.",
       "systemButtonsLeft": true,
-      "height": 50,
-      "iconSize": 24,
-      "_sizeNote": "Seccion 02 de v2: barra a 50px, icono a 24px, via taskbar-icon-size.",
+      "stats": {
+        "show": true,
+        "x": 60,
+        "fontSize": 9,
+        "_note": "cpu, ram y la rama de git a la IZQUIERDA de la barra, junto a Inicio. El mod del reloj solo pinta en el reloj, asi que esto lo dibuja AutoHotkey: una ventana sin marco y transparente al raton encima de la barra (claude-keys.ahk). x = pixeles desde el borde izquierdo de la barra. Se esconde con una ventana a pantalla completa."
+      },
+      "height": 36,
+      "trayOffset": 7,
+      "_trayOffsetNote": "Pixeles que se baja la bandeja (flecha, iconos, reloj) para centrarla. Con la barra a 36 px sale 7 px alta. A 0 o sin la clave, no se toca; si cambias `height`, hay que volver a medirlo.",
+      "iconSize": 20,
+      "_sizeNote": "Barra a 36 px con el icono a 20 (2026-11-16, pedido por el usuario: lo minimo que se siga viendo bien). La seccion 02 de v2 pedia 50 y 24, y 48 es la de serie de Windows. Por debajo de 36 el reloj de dos lineas ya no cabe sin encoger la letra. Via taskbar-icon-size.",
       "previewRadius": 11,
       "thumbRadius": 7,
       "switcherRadius": 12,
@@ -302,8 +320,9 @@
     "clock": {
       "timeFormat": "HH':'mm':'ss",
       "dateFormat": "ddd dd'/'MM",
-      "topLine": "cpu %cpu% · ram %ram%   %time%",
-      "bottomLine": "%web1%   %date%",
+      "topLine": "%time%   %date%",
+      "bottomLine": "",
+      "_linesNote": "Una sola linea: hora y fecha, una al lado de la otra (pedido el 2026-11-16). Con la barra a 36 px dos lineas no cabian sin cortarse. cpu, ram y la rama, que iban aqui, pasan a la izquierda de la barra: taskbar.stats.",
       "fontFamily": "Cascadia Mono",
       "_fontNote": "El diseño pide JetBrains Mono, que no está en Windows. Cascadia Mono sí viene con Windows Terminal y es la misma familia de uso.",
       "_branchNote": "%web1% es la rama de git, servida por lib/gitbranch.py. Si el servicio no corre, sale vacío y el reloj queda igual que antes.",
@@ -311,6 +330,8 @@
       "_formatNote": "v2 pide 14:22:07 y «mie 02/09»: segundos y dia abreviado. cpu/ram y la rama siguen dentro del reloj — v2 los da por «script externo» porque no sabia que el mod hace peticiones HTTP."
     },
     "explorer": {
+      "commandBar": "hidden",
+      "_commandBarNote": "hidden | shown. La fila de botones del Explorador (Nuevo, cortar, copiar, pegar, renombrar, compartir, eliminar, Ordenar, Ver, Detalles): 48 px. Oculta, la cabecera pasa de 136 a 87 px. Todo lo que hacia sigue en el clic derecho y en el teclado (Ctrl+C/V/X, F2, Supr, Ctrl+Mayus+N carpeta nueva, Ctrl+Mayus+1..8 vistas, Alt+Mayus+P panel de detalles).",
       "_comment": "Las columnas del diseño: NOMBRE / MODIFICADO / TIPO / TAMAÑO, con las anchuras de su rejilla 1fr·150·120·90.",
       "columns": [
         {
@@ -358,7 +379,7 @@
       "_comment": "El boton de Inicio, via Start Button Replacer. El diseno le da el chevron del prompt en teal — el asterisco ambar es el icono de Claude, no este.",
       "glyph": "❯",
       "role": "teal",
-      "iconSize": 24
+      "iconSize": 20
     },
     "startMenu": {
       "_comment": "El prompt en el campo de busqueda (secciones 03 y 04 de v2) NO esta puesto. El mod SI llega a SearchHost —el fondo del panel mide #07090A, nuestro color— pero la lupa no se deja: el selector de sus propios temas no la toca, y encima es bicolor (#0078D3 azul con verde), asi que no es un FontIcon monocromo. Retomarlo pide un inspector de arbol XAML, no adivinar selectores. Estos valores se quedan para cuando se sepa el bueno.",
@@ -372,6 +393,8 @@
       "startOpensFlow": true,
       "_startNote": "Win sola, Win+S y el clic en el boton de Inicio abren Flow (AutoHotkey, claude-keys.ahk). El Inicio de Windows sigue en Mayus+clic y Ctrl+Esc; el clic derecho sigue siendo el menu Win+X.",
       "font": "Cascadia Mono",
+      "resultFont": "Segoe UI Variable Text",
+      "_resultFontNote": "Titulo y subtitulo de cada resultado. Flow trae Noto Sans; el resto del escritorio es Segoe UI Variable, y la caja de busqueda va en la mono a proposito (es un prompt). El nombre es el de la familia tal como la lista WPF, no «Segoe UI Variable» a secas, que no existe como familia.",
       "cornerRadius": 12
     }
   },
@@ -473,6 +496,16 @@
         "style": "fill",
         "lockScreen": true,
         "_note": "El Bloom de serie (Windows\\img0.jpg) es azul saturado: lo unico de ese azul en pantalla, y pelea con el acento teal. ThemeD\\img33 es la misma flor en verde salvia y viene con Windows. Sin `wallpaper` en la paleta, el fondo no se toca. lockScreen pone la misma imagen en la pantalla de bloqueo; la anterior se guarda en el snapshot."
+      },
+      "titleBar": {
+        "captionHeight": 18,
+        "_note": "Alto del titulo de las ventanas clasicas, en pixeles (22 de serie). Solo las que dejan a Windows pintar el marco: dialogos, Panel de control, aplicaciones Win32. El Explorador, Windows Terminal, Chrome o VS Code pintan su propia cabecera y no hacen caso. Por debajo de 18 el texto del titulo (9 pt) se corta. Sin `titleBar`, no se toca."
+      },
+      "themeName": "Claude Light",
+      "_themeNote": "El tema de Windows queda guardado con este nombre en la galeria de Temas: es una copia del que Windows ya tiene escrito (fondo, acento, modo claro), no se aplica nada. Sirve para volver de un clic si se elige otro tema. «Tema actual» sigue diciendo «Personalizado»: Windows no deja cambiarlo sin aplicar el tema (ver lib/wintheme.py). Sin `themeName`, no se toca.",
+      "pointer": {
+        "color": "#1B1B1B",
+        "_note": "El puntero blanco de serie se pierde sobre un escritorio casi blanco. Este es el estilo «Personalizado» de Accesibilidad con el color `fg` de la paleta: flecha oscura con borde blanco, forma moderna. NO es el «Negro» de Configuracion, que pone los cursores de pixeles de Windows 95 (ver lib/pointer.py). Coste medido: el aro azul de «ocupado» pasa a ser un reloj de arena fijo. Sin `pointer` en la paleta, el puntero no se toca."
       }
     }
   }

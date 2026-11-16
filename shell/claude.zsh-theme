@@ -30,6 +30,10 @@ _claude_timer_stop() {
   [[ -z $_claude_timer ]] && return
   local d=$(( EPOCHREALTIME - _claude_timer ))
   unset _claude_timer
+  # Un comando largo avisa al acabar: el timbre, que Windows Terminal convierte
+  # en un parpadeo del icono de la barra (bellStyle taskbar) y que solo se nota
+  # si estabas en otra ventana. No suena. tmux lo deja pasar tal cual.
+  (( ${CC_BELL_SECS:-0} > 0 && d >= CC_BELL_SECS )) && printf '\a'
   (( d < 2 )) && return
   if   (( d < 60 ));   then _claude_elapsed=$(printf '%.1fs' $d)
   elif (( d < 3600 )); then _claude_elapsed=$(printf '%dm%02ds' $((d/60)) $((d%60)))
@@ -59,6 +63,9 @@ _claude_repo_track() {
   print -r -- "$_claude_repo" >| "$_claude_repo_file" 2>/dev/null
 }
 add-zsh-hook precmd _claude_repo_track
+# Por delante de los demás precmd: oh-my-zsh pone el título de la pestaña en el
+# suyo, y si este corre después el título va un prompt por detrás de la carpeta.
+precmd_functions=(_claude_repo_track ${precmd_functions:#_claude_repo_track})
 
 # ── contexto: venv, ssh, root ─────────────────────────────────────────
 _claude_context() {
@@ -91,8 +98,16 @@ _claude_cwd_render() {
   if [[ -z $repo || $repo == $HOME || $repo == / ]] ||
      [[ $PWD != "$repo" && $PWD != "$repo"/* ]]; then
     _claude_cwd=$CLAUDE_CWD
+    # El título de la pestaña, en reposo: la carpeta y nada más. El de serie de
+    # oh-my-zsh es «usuario@equipo:ruta», y en una pestaña estrecha lo que se
+    # lee es el nombre del equipo, que es igual en todas.
+    ZSH_THEME_TERM_TITLE_IDLE='%1~' ZSH_THEME_TERM_TAB_TITLE_IDLE='%1~'
     return
   fi
+  # Dentro de un repo, su nombre; y la subcarpeta, si no estás en la raíz.
+  local _t=${${repo:t}//\%/%%}
+  [[ $PWD != "$repo" ]] && _t+=" · ${${PWD:t}//\%/%%}"
+  ZSH_THEME_TERM_TITLE_IDLE=$_t ZSH_THEME_TERM_TAB_TITLE_IDLE=$_t
   # El %% no es paranoia: esto vuelve a pasar por la expansión de prompt, y un %
   # en el nombre de un directorio se comería el carácter siguiente.
   local name=${${repo:t}//\%/%%}
@@ -115,3 +130,45 @@ _claude_cwd_render() {
 # este prompt es exactamente el de antes.
 PROMPT='${_claude_keys_bar}$(_claude_context)%F{'"$CC_HEX_TEAL"'}${_claude_cwd}%f$(git_prompt_info)$(git_prompt_status)%f %(?.%F{'"$CC_HEX_TEAL"'}.%F{'"$CC_HEX_RED"'})❯%f '
 RPROMPT='%(?..%F{'"$CC_HEX_RED"'}✗%?%f )%F{'"$CC_HEX_AMBER"'}${_claude_elapsed}%f'
+
+# ── integración con Windows Terminal ──────────────────────────────────
+# Dos cosas que solo la shell sabe y el terminal no puede adivinar:
+#
+#   · dónde empieza y acaba cada comando (FTCS, OSC 133 A/B/C/D). Con eso el
+#     terminal salta de prompt en prompt, selecciona la salida entera de un
+#     comando y sabe si falló.
+#   · en qué carpeta estás (OSC 9;9). Con eso, duplicar pestaña o panel abre en
+#     la misma. oh-my-zsh ya manda OSC 7, pero Windows Terminal no lo documenta;
+#     el suyo es 9;9, y con la ruta de WINDOWS.
+#
+# Solo en Windows Terminal ($WT_SESSION, que entra en WSL por WSLENV) y fuera de
+# tmux, que se traga los OSC que no conoce. En VS Code no: trae su integración.
+if [[ -n $WT_SESSION && -z $TMUX ]]; then
+  # 0 = aún no hubo prompt · 1 = se lanzó un comando · 2 = prompt sin comando
+  typeset -g _claude_osc_state=0 _claude_osc_pwd=""
+  _claude_osc_preexec() { _claude_osc_state=1; printf '\e]133;C\a' }
+  _claude_osc_precmd() {
+    local code=$?
+    # Alt+flechas cambia de carpeta SIN aceptar la línea y corre los precmd a
+    # mano desde un widget: ahí no ha terminado ningún comando, solo cambia el cwd.
+    if (( ! ${+WIDGET} )); then
+      case $_claude_osc_state in
+        1) printf '\e]133;D;%s\a' $code ;;
+        2) printf '\e]133;D\a' ;;          # Intro en vacío o Ctrl+C: sin código
+      esac
+      _claude_osc_state=2
+    fi
+    # El fork de wslpath, solo al cambiar de carpeta. printf y no print: la ruta
+    # trae barras invertidas (\\wsl.localhost\Ubuntu\home\…) y print las leería
+    # como escapes.
+    if [[ $PWD != $_claude_osc_pwd ]] && (( $+commands[wslpath] )); then
+      _claude_osc_pwd=$PWD
+      printf '\e]9;9;%s\a' "$(wslpath -w "$PWD" 2>/dev/null)"
+    fi
+  }
+  # El primero de los precmd: es el único sitio donde $? sigue siendo el del
+  # comando y no el del gancho anterior.
+  precmd_functions=(_claude_osc_precmd ${precmd_functions:#_claude_osc_precmd})
+  add-zsh-hook preexec _claude_osc_preexec
+  PROMPT=$'%{\e]133;A\a%}'"$PROMPT"$'%{\e]133;B\a%}'
+fi

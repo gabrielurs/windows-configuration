@@ -9,7 +9,7 @@ from __future__ import annotations
 import pathlib, subprocess, sys, time
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-import state, windhawk, keys, wallpaper  # noqa: E402
+import state, windhawk, keys, wallpaper, pointer, titlebar  # noqa: E402
 
 UNIT = "claude-gitbranch.service"
 
@@ -117,6 +117,8 @@ def run(dry: bool = False, win_home: pathlib.Path | None = None) -> bool:
     # El registro ya tiene el fondo de antes, pero escribirlo no repinta; y la
     # imagen de bloqueo no está en el registro. Las dos van por la API.
     wallpaper.restore(snap, win_home, dry)
+    pointer.restore(snap, dry)
+    titlebar.restore(snap, dry)
     _bat_cache(dry)
     print(f"\n{ok} restaurados, {bad} con problemas")
 

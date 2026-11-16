@@ -28,6 +28,13 @@ KEYCOLOR     := "@@KEYCOLOR@@"
 DESCCOLOR    := "@@DESCCOLOR@@"
 START_FLOW   := @@START_FLOW@@
 FLOW_KEYS    := @@FLOW_KEYS@@
+STATS_ON     := @@STATS_ON@@
+STATS_X      := @@STATS_X@@
+STATS_URL    := "@@STATS_URL@@"
+STATS_BG     := "@@STATS_BG@@"
+STATS_FG     := "@@STATS_FG@@"
+STATS_DIM    := "@@STATS_DIM@@"
+STATS_SIZE   := @@STATS_SIZE@@
 HINTFILE     := EnvGet("LOCALAPPDATA") "\claude-terminal-theme\hints"
 ICON_IDLE    := A_ScriptDir "\keys-idle.ico"
 ICON_ACTIVE  := A_ScriptDir "\keys-active.ico"
@@ -50,13 +57,17 @@ InitTray()
 ReadHints()
 SetTimer(ReadHints, 1000)
 InitHotkeys()
+StatsGui := 0, StatsMain := 0, StatsBranchCtl := 0
+StatsIdle := 0, StatsTotal := 0, StatsBranch := "", StatsTick := 0, StatsShown := false
+if (STATS_ON)
+    InitStats()
 ; Si el script se va, que no deje una banda flotando por encima de todo.
 ;
 ; Va AQUÍ y no al final del fichero, que es donde estaba. La sección de
 ; autoejecución de AutoHotkey termina en la PRIMERA definición de atajo, así que
 ; todo lo que hay por debajo de `@@HOTKEY@@::` son funciones que alguien tiene
 ; que llamar: un OnExit() suelto ahí abajo no se registra nunca y no se queja.
-OnExit((*) => HideOSD())
+OnExit((*) => (HideOSD(), HideStats()))
 
 ; ── la tecla que abre el modo ─────────────────────────────────────────
 ; Pulsación corta: entra o sale del modo. Mantenida más de PASSTHROUGH ms:
@@ -550,4 +561,108 @@ OverStartButton() {
         return (x - wx) < wh + 6
     }
     return false
+}
+
+; ── cpu · ram · rama, sobre la barra de tareas ────────────────────────
+; El reloj de la barra solo sabe pintar en el reloj, a la derecha. Para tener
+; estos tres datos a la IZQUIERDA, junto a Inicio, se pinta una ventanita encima
+; de la barra: sin marco, sin foco y transparente al ratón (WS_EX_NOACTIVATE |
+; WS_EX_TRANSPARENT, lo mismo que la banda), así que un clic ahí le llega a la
+; barra como si no hubiera nada. Su fondo es el de la barra.
+;
+; cpu y ram salen de Windows (GetSystemTimes, GlobalMemoryStatusEx); la rama, del
+; mismo servicio de loopback que usaba el reloj (lib/gitbranch.py).
+InitStats() {
+    global StatsGui, StatsMain, StatsBranchCtl, STATS_BG, STATS_FG, STATS_DIM, STATS_SIZE, FONT
+    StatsGui := Gui("-Caption +AlwaysOnTop +ToolWindow +E0x08000020 +Disabled", "ClaudeStats")
+    StatsGui.BackColor := STATS_BG
+    StatsGui.MarginX := 0, StatsGui.MarginY := 0
+    StatsGui.SetFont("s" STATS_SIZE, FONT)
+    probe := StatsGui.Add("Text", "x0 y0", StrRepeat("M", 20))
+    probe.GetPos(, , &pw, &ph)
+    cw := Max(1, Round(pw / 20))
+    probe.Visible := false
+    ; «cpu 100% · ram 100%» son 19 caracteres; la rama, hasta 20.
+    StatsMain := StatsGui.Add("Text", "x0 y0 w" (cw * 41) " h" ph " c" STATS_FG " Background" STATS_BG)
+    StatsGui.W := cw * 41, StatsGui.H := ph
+    UpdateStats()
+    SetTimer(UpdateStats, 2000)
+}
+
+HideStats() {
+    global StatsGui
+    if StatsGui {
+        try StatsGui.Destroy()
+        StatsGui := 0
+    }
+}
+
+UpdateStats(*) {
+    global StatsGui, StatsMain, StatsBranchCtl, StatsIdle, StatsTotal, StatsBranch, StatsTick, StatsShown
+    global STATS_X, STATS_URL
+    if !StatsGui
+        return
+    ; Con una ventana a pantalla completa delante la barra no se ve, y esto, que
+    ; va siempre encima, se quedaría flotando sobre el vídeo o el juego.
+    if (!WinExist("ahk_class Shell_TrayWnd") || ForegroundIsFullscreen()) {
+        if StatsShown {
+            StatsGui.Hide()
+            StatsShown := false
+        }
+        return
+    }
+    DllCall("GetSystemTimes", "int64*", &idle := 0, "int64*", &kern := 0, "int64*", &user := 0)
+    total := kern + user                     ; el tiempo de kernel ya incluye el inactivo
+    cpu := 0
+    if (StatsTotal && total > StatsTotal)
+        cpu := Round(100 * (1 - (idle - StatsIdle) / (total - StatsTotal)))
+    StatsIdle := idle, StatsTotal := total
+    mem := Buffer(64, 0)
+    NumPut("uint", 64, mem)
+    DllCall("GlobalMemoryStatusEx", "ptr", mem)
+    ram := NumGet(mem, 4, "uint")
+    ; La rama cambia poco y cuesta una petición: una de cada tres vueltas. Con
+    ; tiempos de espera cortos, que este hilo es también el de los atajos.
+    if (Mod(StatsTick, 3) = 0) {
+        try {
+            req := ComObject("WinHttp.WinHttpRequest.5.1")
+            req.SetTimeouts(200, 200, 300, 300)
+            req.Open("GET", STATS_URL, false)
+            req.Send()
+            StatsBranch := Trim(req.ResponseText, " `t`r`n")
+        } catch {
+            StatsBranch := ""
+        }
+    }
+    StatsTick += 1
+    ; Un solo texto, para que la rama vaya pegada a lo anterior mida lo que mida:
+    ; en dos controles de ancho fijo quedaba un hueco cuando cpu o ram tenían
+    ; una cifra. El color de la rama se pierde; se lee igual.
+    StatsMain.Text := Format("cpu {}% · ram {}%", Max(0, Min(100, cpu)), ram)
+        . ((StatsBranch = "") ? "" : " · " StatsBranch)
+    ; Sobre la barra, a la derecha de Inicio y centrada en su alto. Se recoloca
+    ; en cada vuelta: la barra cambia de alto y de pantalla sin avisar.
+    WinGetPos(&tx, &ty, &tw, &th, "ahk_class Shell_TrayWnd")
+    StatsGui.Show("NA x" (tx + STATS_X) " y" (ty + (th - StatsGui.H) // 2 + 1) " w" StatsGui.W " h" StatsGui.H)
+    StatsShown := true
+    ; La barra también es «siempre encima», y cada vez que se activa se pone
+    ; delante: hay que volver a pedirlo. -1 = HWND_TOPMOST; 0x13 = sin mover, sin
+    ; cambiar de tamaño y sin activar.
+    DllCall("SetWindowPos", "ptr", StatsGui.Hwnd, "ptr", -1, "int", 0, "int", 0, "int", 0, "int", 0, "uint", 0x13)
+}
+
+ForegroundIsFullscreen() {
+    try {
+        id := WinExist("A")
+        if !id
+            return false
+        cls := WinGetClass("ahk_id " id)
+        if (cls = "Progman" || cls = "WorkerW" || cls = "Shell_TrayWnd")
+            return false
+        WinGetPos(&x, &y, &w, &h, "ahk_id " id)
+        MonitorGet(MonitorFromWindow(id), &ml, &mt, &mr, &mb)
+        return (x <= ml && y <= mt && x + w >= mr && y + h >= mb)
+    } catch {
+        return false
+    }
 }

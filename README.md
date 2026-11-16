@@ -140,6 +140,77 @@ el sistema), en el escritorio y en la pantalla de bloqueo. El Bloom azul de seri
 no está en ningún valor de registro: se vuelca como fichero al snapshot y `--uninstall`
 la devuelve con la API de Windows.
 
+**Integración con Windows Terminal** — el prompt marca dónde empieza y acaba cada comando
+(OSC 133) y dice en qué carpeta estás (OSC 9;9, con la ruta de Windows). A cambio:
+`Ctrl+↑` / `Ctrl+↓` saltan de prompt en prompt, `Ctrl+Mayús+O` selecciona la salida entera
+del último comando, y duplicar pestaña o panel abre en la misma carpeta. Solo dentro de
+Windows Terminal y fuera de tmux. El menú de nueva pestaña pierde Azure Cloud Shell y
+Símbolo del sistema (ocultos, no borrados).
+
+**tmux** — si está instalado, `~/.config/tmux/tmux.conf` generado desde la paleta: barra en
+el tono del terminal, ventana activa en teal, bordes y selección a juego. Y tres cosas sin
+las que el tema no pasa a través de tmux: color de 24 bits, la forma del cursor y
+`escape-time 10`. No toca prefijo, teclas, ratón ni índices; lo tuyo va en
+`~/.config/tmux/local.conf`.
+
+Con `tmux.autostart` en la paleta —hoy en `true`— cada pestaña de Windows Terminal entra
+sola en tmux: una sesión por pestaña, que muere al cerrarla. Solo en Windows Terminal; ni
+VS Code, ni ssh, ni las shells de Claude Code. Entonces el `tmux.conf` enciende también el
+ratón y sube el historial a 20.000 líneas. Lo que se pierde dentro de tmux: `Ctrl+↑` entre
+prompts y el duplicar panel en la misma carpeta, que son del terminal; y para seleccionar
+con el ratón como antes, Mayús+arrastrar. `claude-tmux off` lo apaga desde la siguiente
+pestaña, sin reinstalar.
+
+**La barra de tareas, a 36 px** — icono a 20, hora y fecha en una sola línea a la derecha,
+y cpu · ram · rama de git a la izquierda, junto a Inicio. Lo de la izquierda no lo pinta
+la barra: el mod del reloj solo escribe en el reloj, así que es una ventana de AutoHotkey
+sin marco y transparente al ratón, encima (`taskbar.stats`). La bandeja se baja 7 px con
+una traslación (`taskbar.trayOffset`) porque a esa altura Windows la deja descentrada.
+
+**La cabecera de las ventanas** — el Explorador pierde la barra de comandos
+(`explorer.commandBar: hidden`): de 136 a 87 px hasta la lista, con las reglas del tema
+«NoCommandBar» del propio mod. Lo que hacía sigue en el clic derecho y en el teclado. Y el
+título de las ventanas clásicas baja de 22 a 18 px (`titleBar.captionHeight`); solo el de
+las que dejan a Windows pintar el marco, que no son ni el Explorador ni Windows Terminal ni
+los navegadores.
+
+**La franja de pestañas** — cada pestaña dice lo que corre dentro y mide lo que su título:
+la carpeta o el repo en reposo (`claude-terminal-theme · lib`), el comando en marcha, o el
+título que ponga el programa (Claude Code pone el de la sesión). Antes todas se llamaban
+«Ubuntu» y medían 240 px. `Alt+F11` quita la franja entera y la devuelve: es la única
+forma de bajar de sus 40 px, que Windows Terminal no deja estrechar.
+
+**Herramientas a juego** — btop, lazygit y vim traen sus colores y no miran los del
+terminal (btop pintaba su fondo oscuro sobre el terminal claro). Los tres se generan desde
+la paleta y dejan el fondo sin pintar. vim recibe dos esquemas (`claude-light`,
+`claude-dark`) y, solo si no había `.vimrc`, uno mínimo de color y cursor; lazygit, solo si
+no tenía configuración propia. Las páginas de `man` pasan por bat, y `EDITOR` queda en vim
+si nadie lo había puesto.
+
+**Aviso al acabar** — `notify.afterSeconds` (30): un comando más largo manda el timbre al
+terminar y Windows Terminal hace parpadear su icono en la barra de tareas. Sin sonido.
+
+**Terminal desplegable** — `Win+º` (la tecla a la izquierda del 1, por posición) baja un
+terminal desde arriba de la pantalla. Es el modo quake de Windows Terminal. Y el perfil por
+defecto vuelve a ser Ubuntu: apuntaba a un perfil que el paquete de WSL había ocultado, y
+lo que abría era `cmd`.
+
+**Teclas de tmux** — `tmux.keys`: modo copia con teclas de vim (`v` selecciona, `y` copia)
+y dividir o abrir ventana en la carpeta del panel. Las teclas de serie, con otro destino.
+
+**Puntero** — solo si la paleta trae `windowsDesktop.pointer`, y hoy solo el bloque
+`light`: el blanco de serie se pierde sobre un escritorio casi blanco. Es el estilo
+«Personalizado» de Accesibilidad con el `fg` de la paleta —flecha oscura con borde blanco y
+la forma moderna—, **no** el «Negro» de Configuración, que pone los cursores de píxeles de
+Windows 95. Los cursores los genera la propia Configuración y no hay otra puerta: el
+instalador abre su página unos segundos y la conduce con UI Automation. Coste: el aro azul
+de «ocupado» pasa a ser un reloj de arena fijo. `--uninstall` devuelve los de antes y los
+recarga (probado de ida y vuelta, comparando píxeles).
+
+**Tema con nombre** — `windowsDesktop.themeName` guarda una copia del tema que Windows ya
+tiene escrito («Tema sin guardar») en la galería de Temas, como «Claude Light». No aplica
+nada; sirve para volver de un clic si se elige otro tema.
+
 **Forma y color de la barra** (necesita [Windhawk](https://windhawk.net)) — sin tema base,
 `controlStyles` propios: fondo `#0A0D0F` de borde a borde, línea superior `#1A2026`,
 botón de app con radio 10 y relleno teal al 13% cuando está activo, indicador de app

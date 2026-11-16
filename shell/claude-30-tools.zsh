@@ -182,6 +182,12 @@ if (( $+commands[batcat] || $+commands[bat] )); then
     export BAT_THEME=ansi
   fi
   export BAT_STYLE='numbers,changes,header'
+  # Las páginas de man, con el resaltado de bat y la paleta del tema en vez
+  # del blanco y negro de less. `col -bx` quita las sobreimpresiones con que
+  # man marca negrita y subrayado; MANROFFOPT evita que groff meta sus propios
+  # escapes ANSI, que bat pintaría como basura.
+  export MANPAGER="sh -c 'col -bx | ${commands[bat]:-${commands[batcat]}} -l man -p'"
+  export MANROFFOPT='-c'
   # `cat` se deja en paz a propósito: aliasarlo rompe las tuberías de quien
   # espera texto pelado. Para leer con colores, `bat`.
 fi

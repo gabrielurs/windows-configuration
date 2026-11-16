@@ -171,3 +171,14 @@ bindkey '^H' backward-kill-word
 
 # Sin la barra, Ctrl+W borra UN segmento de ruta en vez de la ruta entera.
 WORDCHARS='*?_-.[]~&;!#$%^(){}<>'
+
+# ── el editor ─────────────────────────────────────────────────────────
+# Sin EDITOR, `git commit`, `crontab -e` y el «editar la línea en el editor»
+# (v en NORMAL) caen en lo que el sistema tenga por defecto, que suele ser nano.
+# Solo si nadie lo ha puesto antes: quien lo traiga en su .zshenv manda.
+if [[ -z $EDITOR ]]; then
+  for _e in nvim vim vi; do
+    (( $+commands[$_e] )) && { export EDITOR=$_e VISUAL=$_e; break }
+  done
+  unset _e
+fi

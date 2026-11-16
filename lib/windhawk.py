@@ -38,6 +38,7 @@ BORDER_MOD = "win11-accent-border"
 ICONSIZE_MOD = "taskbar-icon-size"
 TRAY_MOD = "taskbar-tray-system-icon-tweaks"
 VOLUME_MOD = "taskbar-volume-control"
+MODERN_MOD = "win32-ui-modernizer"
 MODS_KEY = r"HKLM\SOFTWARE\Windhawk\Engine\Mods"
 MODS_HIVE = r"HKEY_LOCAL_MACHINE\SOFTWARE\Windhawk\Engine\Mods"
 
@@ -162,13 +163,26 @@ def taskbar_settings(pal: dict) -> dict[str, object]:
             f'BorderBrush:=<SolidColorBrush Color="{edge}" />',
             "BorderThickness=1",
             f"CornerRadius={g.get('switcherRadius', 12)}"]),
+        # La bandeja entera —flecha, iconos y reloj— sale más alta que el centro
+        # de la barra cuando esta mide menos que los 48 px de serie: medido a 36
+        # px, 7 px por encima, con la línea del reloj rozando el borde. Se baja
+        # con una traslación y no con un margen: `Margin` sobre
+        # Grid#SystemTrayFrameGrid no movió nada (probado), y una transformación
+        # no entra en el cálculo de tamaños, así que nadie la pisa.
+        *([("SystemTray.SystemTrayFrame", [
+            f'RenderTransform:=<TranslateTransform Y="{int(g["trayOffset"])}" />'])]
+          if g.get("trayOffset") else []),
         # reloj arriba en blanco, fecha abajo en gris
         ("TextBlock#TimeInnerTextBlock", [
             f'Foreground:=<SolidColorBrush Color="{argb(s["fg"])}" />',
             f'FontFamily={pal["windowsDesktop"]["clock"]["fontFamily"]}']),
+        # La segunda línea del reloj. Si la paleta la deja vacía —hora y fecha en
+        # una sola línea— se quita del todo: vacía pero visible seguiría
+        # ocupando su alto y la primera no quedaría centrada.
         ("TextBlock#DateInnerTextBlock", [
             f'Foreground:=<SolidColorBrush Color="{argb(ro["grey"]["hex"])}" />',
-            f'FontFamily={pal["windowsDesktop"]["clock"]["fontFamily"]}']),
+            f'FontFamily={pal["windowsDesktop"]["clock"]["fontFamily"]}']
+         if pal["windowsDesktop"]["clock"].get("bottomLine") else ["Visibility=Collapsed"]),
     ]
 
     # Los colores por estado de los botones, como recursos de tema: la plantilla
@@ -479,9 +493,22 @@ def explorer_settings(pal: dict) -> dict[str, object]:
             f'BorderBrush:=<SolidColorBrush Color="{edge}" />']),
         ("ToolTip", [f'Background:=<SolidColorBrush Color="{chrome}" />']),
     ]
+    # Sin barra de comandos: es la fila de «Nuevo · cortar · copiar · … · Ver», 48
+    # de los 136 px que hay hasta la lista. Las dos reglas y el alto del
+    # contenedor son los del tema «NoCommandBar» del propio mod, no inventados:
+    # sin ajustar el contenedor queda el hueco en blanco donde estaba la barra.
+    hide_cmd = pal["windowsDesktop"]["explorer"].get("commandBar", "shown") == "hidden"
+    if hide_cmd:
+        styles += [
+            ("FileExplorerExtensions.CommandBarControl_Wave1, FileExplorerExtensions.CommandBarControl", [
+                "Visibility=Collapsed"]),
+            ("FileExplorerExtensions.NavigationBarControl", [
+                "Grid.RowSpan=2", "Margin=0,0,0,1"]),
+        ]
     out: dict[str, object] = {
         "theme": "",
         "backgroundTranslucentEffect": "",
+        "explorerFrameContainerHeight": 87 if hide_cmd else 0,
         "styleConstants[0]": "",
         # La franja del título a la derecha de las pestañas se queda con el
         # #202020 de Explorer, y no por falta de intentarlo. No se puede pintar
@@ -564,6 +591,81 @@ def volume_settings(pal: dict) -> dict[str, object]:
         "volumeChangeStep": 2,
         "oldTaskbarOnWin11": 0,
     }
+
+
+def modern_settings(pal: dict) -> dict[str, object]:
+    """Los controles Win32 de toda la vida —botones, casillas, barras de
+    desplazamiento, menús, tooltips, los diálogos Abrir/Guardar— con aspecto
+    WinUI. Es lo que el styler del Explorador no alcanza: él pinta las islas
+    XAML, este los controles de comctl32.
+
+    Ojo con lo que es: 72.000 líneas inyectadas en TODOS los procesos
+    (`@include *`, salvo dwm.exe). Antes de instalarlo se le pasó un barrido
+    (2026-11-16, v1.0.4): sin WinHTTP, WinINet ni sockets; `GetAsyncKeyState`
+    solo mira botones del ratón y Escape; el gancho es un WH_CBT por hilo. Un
+    barrido no es una auditoría.
+
+    Van los valores de serie del autor, escritos todos (el .reg borra la
+    subclave). Lo que se fija a propósito: nada de Mica ni acrílico —el tema es
+    de un solo tono opaco—, el modo oscuro propio apagado, y el acento vacío,
+    que es «el del sistema»: ya es el teal de la paleta. Las secciones de
+    regedit y winver, apagadas como vienen. `windowsDesktop.win32` en la paleta
+    sobrescribe clave a clave.
+    """
+    out: dict[str, object] = {
+        "GeneralSection.Enabled": 1,
+        "GeneralSection.EnableDarkMode": 0,
+        "GeneralSection.CustomAccentColor": "",
+        "GeneralSection.AccentGradients": 0,
+        "GeneralSection.RoundedButtons": 1,
+        "GeneralSection.ModernSeparators": 1,
+        "GeneralSection.ModernFocusRect": "modern",
+        "GeneralSection.ModernScrollbars": 1,
+        "GeneralSection.ProgressBars": 0,
+        "GeneralSection.ModernTooltips": 1,
+        "GeneralSection.ModernContextMenus": "winui",
+        "GeneralSection.MenuCornerStyle": "default",
+        "GeneralSection.MenuHoverRadius": 4,
+        "GeneralSection.RoundedTabPane": "winui",
+        "GeneralSection.NormalizeDragDrop": 0,
+        "GeneralSection.ModernInsertMark": 1,
+        "GeneralSection.InsertMarkColor": "accent",
+        "ExplorerSection.Enabled": 1,
+        "ExplorerSection.ExplorerMicaBackdrop": "off",
+        "ExplorerSection.StatusBarWidth": "off",
+        "ExplorerSection.ShellTextDirectWrite": 0,
+        "ExplorerSection.DialogTextDirectWrite": 0,
+        "ExplorerSection.AccentColorize": "off",
+        "ExplorerSection.NeutralSelection": 0,
+        "ExplorerSection.NavPaneWinUIMetrics": 0,
+        "ExplorerSection.NavDivider": "default",
+        "ExplorerSection.NavPaneHoverFade": 0,
+        "ExplorerSection.NavPanePill": "off",
+        "ExplorerSection.NavPillNoClip": 0,
+        "ExplorerSection.NavPaneExpandAnimation": 0,
+        "ExplorerSection.GlyphIcons": "disabled",
+        "ExplorerSection.GlyphColor": "",
+        "ExplorerSection.ColorNavIcons": "disabled",
+        "ExplorerSection.FluentPinIcon": "disabled",
+        "ExplorerSection.PinIconColor": "normal",
+        "ExplorerSection.PinMarginRight": 0,
+        "ExplorerSection.ModernizeShellIcons": 0,
+        "ExplorerSection.ModernShortcutOverlay": 0,
+        "ExplorerSection.DiskChartAccentColor": 0,
+        "ExplorerSection.LegacyRebarControls": "on",
+        "RegeditSection.Enabled": 0,
+        "RegeditSection.TransparentBg": "off",
+        "RegeditSection.GlyphIcons": 0,
+        "WinverSection.Enabled": 0,
+        "WinverSection.Background": "solid",
+        "DarkModeExcludeList[0]": "",
+    }
+    extra = pal["windowsDesktop"].get("win32", {})
+    unknown = set(extra) - set(out)
+    if unknown:
+        raise SystemExit("windowsDesktop.win32: clave desconocida: " + ", ".join(sorted(unknown)))
+    out.update(extra)
+    return out
 
 
 def _esc(v: str) -> str:

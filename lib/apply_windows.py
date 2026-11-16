@@ -9,7 +9,7 @@ from __future__ import annotations
 import argparse, collections, datetime, glob, json, os, pathlib, shutil, subprocess, sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-import render, state, desktop, uninstall, flow, keys, wallpaper  # noqa: E402
+import render, state, desktop, uninstall, flow, keys, wallpaper, pointer, wintheme, titlebar  # noqa: E402
 
 STAMP = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
 MARKER_KEYS_VSCODE = ("terminal.background", "terminal.ansiCyan", "panel.background")
@@ -257,6 +257,16 @@ def apply_wt(pal: dict, ctx: Ctx, remove: bool = False):
             d.pop("theme", None)
         if d.get("profiles", {}).get("defaults", {}).get("colorScheme") == name:
             d["profiles"]["defaults"] = {}
+        for k in ("actions", "keybindings"):
+            d[k] = [a for a in d.get(k, []) if not str(a.get("id", "")).startswith(render.WT_ACTION_PREFIX)]
+        for prof in d.get("profiles", {}).get("list", []):
+            if prof.get("source") == "Microsoft.WSL" and \
+                    prof.get("commandline") == _wsl_fragment_cmd(path, prof.get("guid", "")):
+                prof.pop("commandline", None)
+                prof.pop("startingDirectory", None)
+            if prof.get("source") == "Microsoft.WSL":
+                prof.pop("suppressApplicationTitle", None)
+        d.pop("tabWidthMode", None)
         ctx.say("esquema, tema y defaults retirados")
     else:
         d.setdefault("schemes", [])
@@ -270,9 +280,93 @@ def apply_wt(pal: dict, ctx: Ctx, remove: bool = False):
                       "experimental.retroTerminalEffect"):
                 prof.pop(k, None)
         d["useAcrylicInTabRow"] = False
+        # Cada pestaña, del ancho de su título: con el modo de serie («equal»)
+        # miden todas 240 px digan lo que digan, y con cuatro ya no caben.
+        d["tabWidthMode"] = render.WT_TAB_WIDTH
+        # Saltar entre prompts y seleccionar la salida de un comando. Se quitan
+        # las nuestras y se vuelven a poner; una tecla que el usuario ya tenga
+        # atada a otra cosa se respeta y se avisa.
+        acts, keys = render.wt_actions()
+        ours = lambda a: str(a.get("id", "")).startswith(render.WT_ACTION_PREFIX)
+        theirs = [k for k in d.get("keybindings", []) if not ours(k)]
+        taken = {str(k.get("keys")).lower() for k in theirs}
+        for k in [k for k in keys if k["keys"] in taken]:
+            ctx.say(f"! {k['keys']} ya está atada a otra cosa; no la piso")
+        keys = [k for k in keys if k["keys"] not in taken]
+        d["actions"] = [a for a in d.get("actions", []) if not ours(a)] + acts
+        d["keybindings"] = theirs + keys
+        hidden = []
+        for prof in d["profiles"].get("list", []):
+            if (prof.get("source") in render.WT_HIDE["sources"]
+                    or prof.get("guid") in render.WT_HIDE["guids"]) and not prof.get("hidden"):
+                prof["hidden"] = True
+                hidden.append(prof.get("name", "?"))
+        if hidden:
+            ctx.say("fuera del menú de nueva pestaña: " + ", ".join(hidden))
+        succ = _wsl_successor(path, d.get("defaultProfile", ""))
+        if succ:
+            d["defaultProfile"] = succ
+            ctx.say("perfil por defecto → el Ubuntu de WSL (el anterior estaba oculto y abría cmd)")
+        # Los perfiles que trae WSL: sin su `--cd ~`, y con `~` como directorio
+        # inicial, que da lo mismo al abrir y deja mandar al cwd al duplicar.
+        for prof in d["profiles"].get("list", []):
+            if prof.get("source") != "Microsoft.WSL":
+                continue
+            cmd = _wsl_fragment_cmd(path, prof.get("guid", ""))
+            if cmd and prof.get("commandline") != cmd:
+                prof["commandline"] = cmd
+                prof["startingDirectory"] = "~"
+                ctx.say(f"{prof.get('name', '?')}: duplicar abre en la misma carpeta (sin --cd ~)")
+            # El fragmento de WSL trae `suppressApplicationTitle: true`: todas
+            # las pestañas se llaman «Ubuntu» y no hay forma de saber cuál es
+            # cuál (medido: 4 de 7). Con false manda el título que pone la
+            # shell, tmux o el programa.
+            if prof.get("suppressApplicationTitle") is not False:
+                prof["suppressApplicationTitle"] = False
+                ctx.say(f"{prof.get('name', '?')}: la pestaña enseña el título de lo que corre dentro")
         ctx.say(f"esquema «{name}», tema de ventana y profiles.defaults aplicados")
     dump_json(path, d, ctx, indent=4, ascii_=True)
     ctx.note("Windows Terminal")
+
+
+def _wsl_fragment_cmd(path: pathlib.Path, guid: str) -> str | None:
+    """El `commandline` con el que el paquete de WSL declara su perfil, sin el
+    `--cd ~` del final; None si no lo trae o no acaba así.
+
+    Ese `--cd ~` es lo que impide que duplicar pestaña o panel abra en la misma
+    carpeta: manda sobre el directorio que Windows Terminal quiere pasar, que es
+    el que la shell le fue diciendo con OSC 9;9. Medido el 2026-11-16 con teclas
+    de verdad: `cd /usr/share`, Alt+Mayús+D, y el panel nuevo salía en /home/it.
+    """
+    # …\Packages\Microsoft.WindowsTerminal_…\LocalState\settings.json → …\AppData\Local
+    local = path.parents[3]
+    frag = local / "Microsoft/Windows Terminal/Fragments/Microsoft.WSL" / f"{guid}.json"
+    try:
+        profs = json.loads(frag.read_text(encoding="utf-8-sig")).get("profiles", [])
+    except (OSError, ValueError):
+        return None
+    cmd = next((p.get("commandline", "") for p in profs if p.get("guid") == guid), "")
+    return cmd[:-len(" --cd ~")] if cmd.endswith(" --cd ~") else None
+
+
+def _wsl_successor(path: pathlib.Path, guid: str) -> str | None:
+    """Si un fragmento de WSL declara que su perfil SUSTITUYE a `guid` (lo oculta
+    con `updates`), el guid del perfil nuevo.
+
+    El paquete de WSL trae ahora su propio perfil y esconde el que generaba
+    Windows Terminal. Si `defaultProfile` se quedó apuntando al viejo, lo que se
+    abre es un perfil sin comando, o sea `cmd.exe`: medido el 2026-11-16, una
+    pestaña sin `-p` sale con «C:\\>» y no con Ubuntu.
+    """
+    frags = path.parents[3] / "Microsoft/Windows Terminal/Fragments/Microsoft.WSL"
+    for f in sorted(frags.glob("*.json")) if frags.is_dir() else []:
+        try:
+            profs = json.loads(f.read_text(encoding="utf-8-sig")).get("profiles", [])
+        except (OSError, ValueError):
+            continue
+        if any(p.get("updates") == guid and p.get("hidden") for p in profs):
+            return next((p["guid"] for p in profs if p.get("guid")), None)
+    return None
 
 
 # ── VS Code ───────────────────────────────────────────────────────────
@@ -429,6 +523,21 @@ def build_steps(pal: dict | None, home) -> list[Step]:
             ctx.note("fondo y bloqueo")
         return False
 
+    def point(ctx):
+        if pointer.apply(dpal, ctx.snap, ctx):
+            ctx.note("puntero")
+        return False
+
+    def title(ctx):
+        if titlebar.apply(dpal, ctx.snap, ctx):
+            ctx.note("barra de título")
+        return False
+
+    def theme(ctx):
+        if wintheme.apply(dpal, ctx.snap, ctx, home):
+            ctx.note("tema con nombre")
+        return False
+
     def menu(ctx):
         if desktop.apply_context_menu(ctx.snap, ctx):
             ctx.note("menú contextual")
@@ -465,11 +574,14 @@ def build_steps(pal: dict | None, home) -> list[Step]:
         Step("accent",   "acento de Windows",      accent),
         Step("taskbar",  "barra de tareas",        taskbar),
         Step("wallpaper", "fondo y bloqueo",       wall),
+        Step("pointer",  "puntero del ratón",      point),
+        Step("titlebar", "barra de título",        title),
         Step("menu",     "menú contextual",        menu),
         Step("launcher", "buscador flotante",      launcher),
         Step("keys",     "atajos de ventanas",     keymap),
         Step("icons",    "iconos de los anclados", icons),
         Step("windhawk", "Windhawk",               windhawk),
+        Step("theme",    "tema con nombre",        theme),
     ]
 
 

@@ -158,6 +158,11 @@ def apply(pal: dict, snap, ctx, win_home, remove: bool = False) -> bool:
         d["Theme"] = THEME_NAME
         d["Hotkey"] = fl.get("hotkey", "Ctrl + Space")
         d["QueryBoxFont"] = fl.get("font", "Cascadia Mono")
+        # Los resultados, en la fuente del sistema. Flow trae Noto Sans, que no
+        # es la de nada más en el escritorio: con la caja en Cascadia eran tres
+        # familias a la vista. Sin `resultFont` en la paleta no se toca.
+        if fl.get("resultFont"):
+            d["ResultFont"] = d["ResultSubFont"] = fl["resultFont"]
         d["SearchWindowAlign"] = "Center"
         d["UseSound"] = False
         # Arrancar con el equipo, y oculto: un lanzador que hay que abrir a mano

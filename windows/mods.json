@@ -63,6 +63,11 @@
       "id": "taskbar-volume-control",
       "name": "Taskbar Volume Control",
       "que": "la rueda sobre la barra cambia el volumen"
+    },
+    {
+      "id": "win32-ui-modernizer",
+      "name": "Win32 UI Modernizer",
+      "que": "controles Win32 antiguos (botones, casillas, barras de desplazamiento, menús, diálogos Abrir/Guardar) con aspecto WinUI"
     }
   ]
 }

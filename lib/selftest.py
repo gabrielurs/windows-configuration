@@ -257,7 +257,10 @@ def zsh_under_pty(script: str, timeout: int = 60) -> tuple[str, str]:
 def clean_pty(out: str) -> str:
     """Bajo pty el prompt mete secuencias de escape y títulos de ventana (OSC)
     en medio de la salida. Esto las quita."""
-    txt = re.sub(r"\x1b][0-9];[^\x07\x1b]*(\x07|\x1b\\)", "", out)
+    # [0-9]+ y no [0-9]: el título es OSC 0/2/7, pero las marcas de Windows
+    # Terminal son OSC 133 y 9;9. Con un solo dígito se colaban en la salida y la
+    # sonda leía «]133;C» como parte de los datos: 32 fallos que no eran de la shell.
+    txt = re.sub(r"\x1b][0-9]+;[^\x07\x1b]*(\x07|\x1b\\)", "", out)
     return re.sub(r"\x1b\[[0-9;?]*[ -/]*[A-Za-z@]", "", txt).replace("\r", "")
 
 
@@ -703,8 +706,16 @@ def _ahk_loads(r: Report, pal: dict, src: str) -> None:
     with tmp.open("w", encoding="utf-8", newline="\r\n") as fh:
         # ExitApp al final de la autoejecución: carga, comprueba y se va sin
         # dejar un proceso ni robar Alt+Space durante el test.
-        fh.write(src.replace("OnExit((*) => HideOSD())",
-                             "OnExit((*) => HideOSD())\nExitApp()", 1))
+        # Por patrón y no por la línea literal: al añadir HideStats() al OnExit
+        # el reemplazo dejó de casar SIN AVISAR, el script de prueba ya no salía,
+        # agotaba los 45 s y se quedaba vivo robando Alt+Space. Si no casa, que
+        # falle aquí y diga por qué.
+        patched, n = re.subn(r"(?m)^(OnExit\(.*\))\s*$", r"\1\nExitApp()", src, count=1)
+        if n != 1:
+            r.check("AutoHotkey carga el script sin errores", False,
+                    "no encuentro el OnExit donde colgar el ExitApp de la prueba")
+            return
+        fh.write(patched)
     win = subprocess.run(["wslpath", "-w", str(tmp)],
                          capture_output=True, text=True).stdout.strip()
     try:
@@ -942,6 +953,56 @@ def check_desktop_choices(r: Report, pal: dict) -> None:
     r.check("barra: estados por recurso (indicador y botón activo)",
             all(k in res for k in ("RunningIndicatorActiveBrush", "ShellTaskbarItemFillColorSecondaryBrush"))
             and not any("TaskListLabeledButtonPanel" in str(v) for v in tb.values()), res[:60])
+    # tmux: solo aspecto. Un base-index o un prefijo aquí rompería a quien abre
+    # paneles por índice, y nadie lo vería hasta que fallase.
+    conf = render.tmux_conf(render.terminal(pal))
+    r.check("tmux: ni prefijo ni índices, y nada de desatar teclas",
+            not re.search(r"base-index|prefix |unbind", conf.replace("client_prefix", "")),
+            "el tmux.conf generado toca comportamiento")
+    binds = re.findall(r"^bind (?:-T (\S+) )?(\S+)", conf, re.M)
+    r.check("tmux: las ataduras son las cinco previstas, y solo con tmux.keys",
+            sorted(binds) == (sorted([("copy-mode-vi", "v"), ("copy-mode-vi", "y"), ("", "'\"'"), ("", "%"), ("", "c")])
+                              if pal.get("tmux", {}).get("keys") else []), str(binds))
+    auto = bool(pal.get("tmux", {}).get("autostart"))
+    r.check("tmux: ratón e historial largo solo con autostart",
+            ("set -g mouse on" in conf) == auto and ("history-limit" in conf) == auto, f"autostart={auto}")
+    layer = (render.ROOT / "shell/claude-05-tmux.zsh").read_text(encoding="utf-8")
+    r.check("tmux al abrir: solo en WT, fuera de tmux y de Claude Code, y con salida si falla",
+            all(g in layer for g in ("-o interactive", "-n $WT_SESSION", "-z $TMUX", "-z $CLAUDECODE"))
+            and "&& exit" in layer and "exec tmux" not in layer.split("if [[ -o interactive")[1], "guardas")
+    r.check("tmux: la barra va en el fondo del terminal",
+            f'status-style "bg={render.terminal(pal)["surfaces"]["bg"]},' in conf, "status-style")
+    # La integración con Windows Terminal: solo allí y fuera de tmux, y las
+    # acciones del tema con su prefijo, que es lo que permite retirarlas.
+    theme = (render.ROOT / "shell/claude.zsh-theme").read_text(encoding="utf-8")
+    r.check("shell: OSC 133 solo en Windows Terminal y fuera de tmux",
+            "if [[ -n $WT_SESSION && -z $TMUX ]]; then" in theme and theme.count("133;A") == 1, "guarda")
+    acts, keys = render.wt_actions()
+    r.check("WT: cada acción del tema tiene su tecla y su prefijo",
+            len(acts) == len(keys) and all(a["id"].startswith(render.WT_ACTION_PREFIX) for a in acts + keys),
+            str(len(acts)))
+    # La cabecera del Explorador: ocultar la barra de comandos sin ajustar el
+    # contenedor deja un hueco en blanco; las dos cosas van juntas o ninguna.
+    ex = windhawk.explorer_settings(render.desktop(pal))
+    hidden = any("CommandBarControl" in str(ex.get(k, "")) and ex.get(k.replace(".target", ".styles[0]")) == "Visibility=Collapsed"
+                 for k in ex if k.endswith(".target"))
+    r.check("Explorador: barra de comandos oculta ⇔ contenedor a 87 px",
+            (ex["explorerFrameContainerHeight"] == 87) == hidden, str(ex["explorerFrameContainerHeight"]))
+    import titlebar
+    r.check("título: twips del registro a píxeles", titlebar.px("-330") == 22 and titlebar.px("-270") == 18, "px()")
+    # El puntero y el tema con nombre: lo que se puede comprobar sin tocar Windows.
+    import pointer, wintheme
+    r.check("puntero: el color va como COLORREF (BGR)", pointer.colorref("#BFFF00") == 0xFFBF,
+            hex(pointer.colorref("#BFFF00")))
+    for mode in ("dark", "light"):
+        pt = render.desktop(dict(pal, windowsMode=mode))["windowsDesktop"].get("pointer")
+        if pt:
+            r.check(f"{mode}: pointer.color es #RRGGBB",
+                    bool(re.fullmatch(r"#[0-9A-Fa-f]{6}", pt.get("color", ""))), str(pt.get("color")))
+    th = wintheme.named("[Theme]\nDisplayName=Tema sin guardar\nThemeId={X}\n[boot]\n", "Claude Light")
+    r.check("tema: la copia cambia nombre e id y nada más",
+            "DisplayName=Claude Light\n" in th and "{X}" not in th and th.endswith("[boot]\n")
+            and wintheme.named("[Theme]\n", "x") == "", th[:40])
     for mode in ("dark", "light"):
         wp = render.desktop(dict(pal, windowsMode=mode))["windowsDesktop"].get("wallpaper")
         if not wp:

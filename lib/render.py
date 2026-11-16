@@ -115,6 +115,10 @@ def _palette_zsh_vars(p: dict) -> list[str]:
     # compañía los usan para sus iconos, y Cascadia Code a secas NO los tiene:
     # sin esto salen todos como «?».
     out.append(f"typeset -g CC_NERD_GLYPHS='{1 if p['font'].get('nerdGlyphs') else 0}'")
+    # ¿Cada pestaña de Windows Terminal entra sola en tmux? (claude-05-tmux.zsh)
+    # Segundos a partir de los cuales un comando avisa al terminar (0 = nunca)
+    out.append(f"typeset -g CC_BELL_SECS='{int(p.get('notify', {}).get('afterSeconds', 0))}'")
+    out.append(f"typeset -g CC_TMUX_AUTO='{1 if p.get('tmux', {}).get('autostart') else 0}'")
     # La palabra cambiada de un diff (delta): el color de la línea —verde en las
     # altas, rojo en las bajas— al 15% sobre su fondo. Antes iba en el gris de la
     # selección en las dos, y una baja no se distinguía de una alta. Más del 15%
@@ -169,9 +173,48 @@ def wt_defaults(p: dict) -> dict:
         "opacity": 100,
         "intenseTextStyle": p.get("windowsTerminal", {}).get("intenseTextStyle", "bright"),
         "historySize": 20000,
-        "bellStyle": "none",
+        # El timbre no suena nunca. Con `notify`, hace parpadear el icono de la
+        # barra de tareas, que solo se ve si la ventana no tiene el foco.
+        "bellStyle": "taskbar" if p.get("notify", {}).get("afterSeconds") else "none",
         "experimental.retroTerminalEffect": False,
+        # Las marcas las manda la shell (OSC 133, en claude.zsh-theme); esto
+        # hace que el terminal las tenga en cuenta. Estable desde la 1.21.
+        "autoMarkPrompts": True,
     }
+
+
+# Acciones propias de Windows Terminal, en su formato de la 1.24: la acción
+# lleva un id y la tecla apunta al id. El prefijo es lo que permite quitarlas y
+# volverlas a poner sin tocar las del usuario.
+WT_ACTION_PREFIX = "User.claude."
+WT_ACTIONS = [
+    # (id, tecla, comando) — Ctrl+↑/↓ son las que sugiere la documentación y
+    # zsh no las usa (medido: sin atadura en ningún keymap).
+    ("prevPrompt", "ctrl+up", {"action": "scrollToMark", "direction": "previous"}),
+    ("nextPrompt", "ctrl+down", {"action": "scrollToMark", "direction": "next"}),
+    ("selectOutput", "ctrl+shift+o", {"action": "selectOutput", "direction": "prev"}),
+    # El terminal desplegable: baja desde arriba de la pantalla y se esconde con
+    # la misma tecla, estés donde estés. sc(41) es la tecla a la izquierda del 1
+    # por POSICIÓN —º en un teclado español, ` en uno americano—: con el
+    # carácter, la tecla cambiaría según la distribución.
+    ("quake", "win+sc(41)", {"action": "quakeMode"}),
+    # Sin franja superior: ni pestañas ni título, todo el alto para el texto.
+    # La fila de pestañas mide 40 px y Windows Terminal no deja estrecharla;
+    # esto la quita y la devuelve con la misma tecla.
+    ("focus", "alt+f11", {"action": "toggleFocusMode"}),
+]
+WT_TAB_WIDTH = "titleLength"
+# Perfiles que sobran en el menú de nueva pestaña. Azure por su origen y cmd por
+# su guid, que es fijo en todas las máquinas; por nombre no, que va traducido.
+WT_HIDE = {"sources": ("Windows.Terminal.Azure",),
+           "guids": ("{0caa0dad-35be-5f56-a8ff-afceeeaa6101}",)}
+
+
+def wt_actions() -> tuple[list[dict], list[dict]]:
+    """(actions, keybindings) que añade el tema."""
+    acts = [{"command": cmd, "id": WT_ACTION_PREFIX + i} for i, _, cmd in WT_ACTIONS]
+    keys = [{"id": WT_ACTION_PREFIX + i, "keys": k} for i, k, _ in WT_ACTIONS]
+    return acts, keys
 
 
 def vscode_colors(p: dict) -> dict:
@@ -518,9 +561,252 @@ def ahk_substitutions(p: dict) -> dict[str, str]:
         "DESCCOLOR":     bare(ro["grey"]["hex"]),
         "MODES":         "\n".join(modes),
         "APPS":          "\n".join(apps) or ";  (sin apps definidas en palette.json)",
+        # cpu · ram · rama a la izquierda de la barra (ver la plantilla)
+        "STATS_ON":      "1" if p["windowsDesktop"]["taskbar"].get("stats", {}).get("show") else "0",
+        "STATS_X":       str(int(p["windowsDesktop"]["taskbar"].get("stats", {}).get("x", 52))),
+        "STATS_URL":     f"http://127.0.0.1:{int(p['windowsDesktop'].get('gitBranch', {}).get('port', 8756))}/",
+        "STATS_BG":      bare(s["bgAlt"]),
+        "STATS_FG":      bare(s["fg"]),
+        "STATS_DIM":     bare(ro["grey"]["hex"]),
+        "STATS_SIZE":    str(int(p["windowsDesktop"]["taskbar"].get("stats", {}).get("fontSize", 9))),
         "START_FLOW":    "1" if p["windowsDesktop"]["launcher"].get("startOpensFlow") else "0",
         "FLOW_KEYS":     _ahk_str(ahk_send(p["windowsDesktop"]["launcher"].get("hotkey", "Ctrl + Space"))),
     }
+
+
+def tmux_conf(p: dict) -> str:
+    """tmux con la paleta. Solo aspecto, y tres ajustes sin los cuales el resto
+    del tema no llega a través de tmux: color de 24 bits, la forma del cursor y
+    un Esc que no tarde medio segundo.
+
+    Lo que NO toca, a propósito: el prefijo, las teclas y la numeración de
+    ventanas y paneles. Hay scripts que abren paneles y los nombran por índice;
+    un `base-index 1` aquí los rompería sin decir nada.
+
+    Con `tmux.autostart` en la paleta, tmux pasa a ser donde se vive, y entonces
+    sí van dos cosas de comportamiento: el ratón —sin él la rueda no mueve el
+    historial, manda flechas a la shell— y un historial tan largo como el que
+    tenía Windows Terminal (20.000 líneas; tmux trae 2.000).
+
+    La barra va en el mismo tono que el terminal —un solo fondo— y la ventana
+    activa se marca por color y negrita, no por una pastilla.
+    """
+    s, ro = p["surfaces"], p["roles"]
+    teal, amber = ro["teal"]["hex"], ro["amber"]["hex"]
+    return "\n".join([
+        "# Generado por lib/render.py desde palette.json. No editar a mano:",
+        "# lo tuyo va en ~/.config/tmux/local.conf, que se carga al final.",
+        "",
+        "# ── lo que hace falta para que el tema pase a través de tmux ──",
+        'set -g default-terminal "tmux-256color"',
+        "# color de 24 bits: sin esto tmux redondea la paleta a 256",
+        'set -as terminal-features ",xterm-256color:RGB"',
+        "# la forma del cursor (DECSCUSR): el terminfo de xterm-256color no trae",
+        "# Ss/Se y tmux se comería la barra de INSERT y el bloque de NORMAL",
+        "set -as terminal-overrides ',xterm*:Ss=\\E[%p1%d q:Se=\\E[2 q'",
+        "# Claude Code baja a 256 colores en cuanto ve $TMUX, salvo que se le diga",
+        "# que este tmux sí pasa los 24 bits (arriba). Sin esto la banda de la",
+        "# statusline sale en #EEEEEE —el gris 255 de la paleta de 256— sobre el",
+        "# #F3F3F3 del terminal, y los roles en sus vecinos más cercanos.",
+        "set-environment -g CLAUDE_CODE_TMUX_TRUECOLOR 1",
+        "# Esc: por defecto tmux espera 500 ms por si es una secuencia, y el modo",
+        "# vim de la shell se nota pegajoso",
+        "set -sg escape-time 10",
+        "set -g focus-events on",
+        "# el título de la pestaña: tmux no lo pasa si no se le pide. El del programa",
+        "# si puso uno (Claude Code pone el de la sesión); si no, el nombre de la",
+        "# ventana, que la shell mantiene con la carpeta o el comando en marcha.",
+        "set -g set-titles on",
+        "set -g set-titles-string '#{?#{==:#{pane_title},#{host}},#W,#T}'",
+        *([
+            "",
+            "# ── tmux arranca solo en cada pestaña (tmux.autostart) ──",
+            "# la rueda mueve el historial; para seleccionar como en Windows",
+            "# Terminal, Mayús+arrastrar",
+            "set -g mouse on",
+            "set -g history-limit 20000",
+            "# con una sola ventana la barra no dice nada («0 zsh»): se esconde, y",
+            "# la pestaña se ve como un terminal a secas. Vuelve sola con la segunda.",
+            *[f"set-hook -g {ev} 'if -F \"#{{==:#{{session_windows}},1}}\" \"set status off\" \"set status on\"'"
+              for ev in ("session-created", "window-linked", "window-unlinked")],
+        ] if p.get("tmux", {}).get("autostart") else []),
+        *([
+            "",
+            "# ── teclas (tmux.keys) ──",
+            "# el modo copia, con las teclas de vim: era lo único del terminal que",
+            "# seguía en emacs. v selecciona, y copia y sale.",
+            "setw -g mode-keys vi",
+            "bind -T copy-mode-vi v send -X begin-selection",
+            "bind -T copy-mode-vi y send -X copy-selection-and-cancel",
+            "# dividir y abrir ventana en la carpeta del panel, no en la de inicio de",
+            "# la sesión. Las mismas teclas de serie: solo cambia dónde abren.",
+            "bind '\"' split-window -v -c '#{pane_current_path}'",
+            "bind % split-window -h -c '#{pane_current_path}'",
+            "bind c new-window -c '#{pane_current_path}'",
+        ] if p.get("tmux", {}).get("keys") else []),
+        "",
+        "# ── la barra ──",
+        f'set -g status-style "bg={s["bg"]},fg={s["fgDim"]}"',
+        "set -g status-left-length 40",
+        "# el nombre de la sesión solo si dice algo: las de cada pestaña se llaman",
+        "# wt-<pid> y enseñarlo es ruido; una con nombre propio (orq-…) sí sale",
+        f'set -g status-left "#{{?#{{m:wt-*,#S}}, ,#[fg={teal}#,bold] #S #[fg={s["border"]}#,nobold]│ }}"',
+        f'set -g status-right "#{{?client_prefix,#[fg={amber}#,bold]PREFIJO ,}}"',
+        f'setw -g window-status-format "#[fg={s["fgDim"]}]#I #W "',
+        f'setw -g window-status-current-format "#[fg={teal},bold]#I #W "',
+        'setw -g window-status-separator ""',
+        f'setw -g window-status-activity-style "fg={amber}"',
+        f'setw -g window-status-bell-style "fg={ro["red"]["hex"]},bold"',
+        "",
+        "# ── paneles, mensajes y selección ──",
+        f'set -g pane-border-style "fg={s["border"]}"',
+        f'set -g pane-active-border-style "fg={teal}"',
+        f'set -g message-style "bg={s["selection"]},fg={s["fg"]}"',
+        f'set -g message-command-style "bg={s["selection"]},fg={s["fg"]}"',
+        f'setw -g mode-style "bg={s["selection"]},fg={s["fg"]}"',
+        f'set -g display-panes-colour "{s["fgDim"]}"',
+        f'set -g display-panes-active-colour "{teal}"',
+        f'setw -g clock-mode-colour "{teal}"',
+        "",
+        "if-shell '[ -f ~/.config/tmux/local.conf ]' 'source-file ~/.config/tmux/local.conf'",
+        "",
+    ])
+
+
+# ── las herramientas de pantalla completa ─────────────────────────────
+# btop, lazygit y vim traen su propio reparto de colores y no miran el del
+# terminal: sin esto, btop pinta su fondo oscuro de serie sobre el terminal claro.
+# Los tres dejan el FONDO sin pintar —el del terminal— para que siga habiendo un
+# solo tono, y solo ponen tinta.
+
+def btop_theme(p: dict) -> str:
+    """Tema de btop. Las claves son las de los temas que trae (adwaita.theme).
+    Los degradados van de teal a ámbar a rojo: reposo, carga, alarma."""
+    s, ro = p["surfaces"], p["roles"]
+    teal, amber, red, blue, green = (ro[k]["hex"] for k in ("teal", "amber", "red", "blue", "green"))
+    rows = [
+        ("main_bg", ""),                 # vacío = el fondo del terminal
+        ("main_fg", s["fg"]), ("title", s["fg"]), ("hi_fg", teal),
+        ("selected_bg", s["selection"]), ("selected_fg", s["fg"]),
+        ("inactive_fg", s["ghost"]), ("graph_text", s["fgDim"]), ("meter_bg", s["border"]),
+        ("proc_misc", teal),
+        ("cpu_box", s["border"]), ("mem_box", s["border"]), ("net_box", s["border"]),
+        ("proc_box", s["border"]), ("div_line", s["border"]),
+    ]
+    for name, (a, b, c) in {
+        "temp": (teal, amber, red), "cpu": (teal, amber, red),
+        "free": (green, green, green), "cached": (blue, blue, blue),
+        "available": (teal, teal, teal), "used": (teal, amber, red),
+        "download": (blue, blue, blue), "upload": (ro["purple"]["hex"],) * 3,
+        "process": (teal, amber, red),
+    }.items():
+        rows += [(f"{name}_start", a), (f"{name}_mid", b), (f"{name}_end", c)]
+    return ("# Generado por lib/render.py desde palette.json. No editar a mano.\n"
+            + "".join(f'theme[{k}]="{v}"\n' for k, v in rows))
+
+
+LAZYGIT_MARK = "# Generado por lib/render.py desde palette.json."
+
+
+def lazygit_config(p: dict) -> str:
+    """Solo `gui`: colores e iconos. Las claves salen de `lazygit --config`."""
+    s, ro = p["surfaces"], p["roles"]
+    q = lambda c: f"'{c}'"
+    return "\n".join([
+        LAZYGIT_MARK + " Lo tuyo, debajo de `gui:` no: en otro fichero",
+        "# y con LG_CONFIG_FILE, o quita esta primera línea y el instalador no lo vuelve a tocar.",
+        "gui:",
+        f"  nerdFontsVersion: {q('3') if p['font'].get('nerdGlyphs') else q('')}",
+        "  border: rounded",
+        "  theme:",
+        f"    activeBorderColor: [{q(ro['teal']['hex'])}, bold]",
+        # ghost y no border: los títulos de panel van en este color, y en el
+        # gris de las líneas (#E5E5E5 sobre #F3F3F3) no se leían
+        f"    inactiveBorderColor: [{q(s['ghost'])}]",
+        f"    searchingActiveBorderColor: [{q(ro['amber']['hex'])}, bold]",
+        f"    optionsTextColor: [{q(ro['blue']['hex'])}]",
+        f"    selectedLineBgColor: [{q(s['selection'])}]",
+        f"    inactiveViewSelectedLineBgColor: [{q(s['border'])}]",
+        f"    cherryPickedCommitFgColor: [{q(s['fg'])}]",
+        f"    cherryPickedCommitBgColor: [{q(s['selection'])}]",
+        f"    markedBaseCommitFgColor: [{q(s['fg'])}]",
+        f"    markedBaseCommitBgColor: [{q(s['diffPlus'] if 'diffPlus' in s else s['selection'])}]",
+        f"    unstagedChangesColor: [{q(ro['red']['hex'])}]",
+        f"    defaultFgColor: [{q(s['fg'])}]",
+        "",
+    ])
+
+
+def vim_colors(p: dict, name: str) -> str:
+    """Esquema de vim con el mismo reparto que el tema de bat (BAT_SCOPES):
+    cadenas ámbar, palabras clave moradas, funciones azules, tipos teal."""
+    s, ro = p["surfaces"], p["roles"]
+    c = lambda k: ro[k]["hex"]
+    hi = lambda g, fg="NONE", bg="NONE", attr="NONE": (
+        f"hi {g} guifg={fg} guibg={bg} gui={attr} cterm={attr}")
+    light = contrast(s["fg"], "#FFFFFF") > contrast(s["fg"], "#000000")
+    return "\n".join([
+        f'" {name}.vim — generado por lib/render.py desde palette.json. No editar a mano.',
+        "hi clear", "if exists('syntax_on') | syntax reset | endif",
+        f"let g:colors_name = '{name}'", f"set background={'light' if light else 'dark'}",
+        hi("Normal", s["fg"]),                       # sin fondo: el del terminal
+        hi("Comment", c("grey"), attr="italic"),
+        hi("String", c("amber")), hi("Character", c("amber")),
+        hi("Constant", c("orange")), hi("Number", c("orange")), hi("Boolean", c("orange")),
+        hi("Special", c("orange")), hi("SpecialChar", c("orange")),
+        hi("Statement", c("purple")), hi("Keyword", c("purple")), hi("Conditional", c("purple")),
+        hi("Repeat", c("purple")), hi("StorageClass", c("purple")), hi("PreProc", c("purple")),
+        hi("Operator", s["fgDim"]), hi("Delimiter", s["fgDim"]),
+        hi("Function", c("blue")), hi("Identifier", s["fg"]),
+        hi("Type", c("teal")), hi("Structure", c("teal")), hi("Title", c("teal"), attr="bold"),
+        hi("Underlined", c("blue"), attr="underline"),
+        hi("Todo", c("amber"), attr="bold"), hi("Error", c("red"), attr="underline"),
+        hi("ErrorMsg", c("red")), hi("WarningMsg", c("amber")), hi("MoreMsg", c("teal")),
+        hi("Question", c("teal")), hi("Directory", c("teal")),
+        hi("LineNr", s["ghost"]), hi("CursorLineNr", c("teal"), attr="bold"),
+        hi("CursorLine", bg=s.get("card", s["bgAlt"])), hi("ColorColumn", bg=s["border"]),
+        hi("SignColumn"), hi("FoldColumn", s["ghost"]), hi("Folded", s["fgDim"], s["border"]),
+        hi("NonText", s["ghost"]), hi("SpecialKey", s["ghost"]), hi("EndOfBuffer", s["border"]),
+        hi("Visual", bg=s["selection"]), hi("Search", s["fg"], s["selection"]),
+        hi("IncSearch", s["bg"], c("teal")), hi("MatchParen", c("teal"), attr="bold,underline"),
+        hi("Pmenu", s["fg"], s["border"]), hi("PmenuSel", s["fg"], s["selection"]),
+        hi("PmenuSbar", bg=s["border"]), hi("PmenuThumb", bg=s["ghost"]),
+        hi("StatusLine", s["fg"], s["border"]), hi("StatusLineNC", s["fgDim"], s["border"]),
+        hi("VertSplit", s["border"]), hi("TabLine", s["fgDim"], s["border"]),
+        hi("TabLineSel", c("teal"), attr="bold"), hi("TabLineFill", bg=s["border"]),
+        hi("DiffAdd", bg=s.get("diffPlus", s["selection"])),
+        hi("DiffDelete", c("red"), s.get("diffMinus", s["selection"])),
+        hi("DiffChange", bg=s["border"]), hi("DiffText", bg=s["selection"], attr="bold"),
+        hi("SpellBad", attr="undercurl") + f" guisp={c('red')}",
+        "",
+    ])
+
+
+VIMRC_MARK = '" Generado por claude-terminal-theme.'
+
+
+def vimrc() -> str:
+    """Un .vimrc mínimo, solo si no había ninguno: color y cursor. Nada de
+    teclas ni de plugins; eso es de cada cual."""
+    return "\n".join([
+        VIMRC_MARK + " Quita esta línea y el instalador no lo vuelve a tocar.",
+        "set nocompatible",
+        "syntax on",
+        "filetype plugin indent on",
+        '" color de 24 bits, también dentro de tmux (que no anuncia t_8f/t_8b)',
+        r'let &t_8f = "\<Esc>[38;2;%lu;%lu;%lum"',
+        r'let &t_8b = "\<Esc>[48;2;%lu;%lu;%lum"',
+        "set termguicolors",
+        '" claro en Windows Terminal, oscuro en VS Code: como el resto del tema',
+        "execute 'colorscheme claude-' . ($TERM_PROGRAM ==# 'vscode' ? 'dark' : 'light')",
+        '" el cursor dice el modo, igual que en la shell: barra al insertar, bloque en normal',
+        r'let &t_SI = "\<Esc>[6 q"',
+        r'let &t_SR = "\<Esc>[4 q"',
+        r'let &t_EI = "\<Esc>[2 q"',
+        '" Esc sin espera: el mismo motivo que escape-time en tmux',
+        "set ttimeout ttimeoutlen=10",
+        "",
+    ])
 
 
 if __name__ == "__main__":
@@ -546,6 +832,18 @@ if __name__ == "__main__":
         # tema que se elige en cada terminal lo decide la shell (CC_MODE).
         tp = terminal(dict(pal, terminalMode="light")) if mode == "light" else pal
         sys.stdout.write(bat_theme(tp, f"claude-{mode}"))
+    elif what == "btop.theme":
+        sys.stdout.write(btop_theme(terminal(pal)))
+    elif what == "lazygit.yml":
+        sys.stdout.write(lazygit_config(terminal(pal)))
+    elif what in ("vim-light", "vim-dark"):
+        mode = what.rsplit("-", 1)[1]
+        tp = terminal(dict(pal, terminalMode="light")) if mode == "light" else pal
+        sys.stdout.write(vim_colors(tp, f"claude-{mode}"))
+    elif what == "vimrc":
+        sys.stdout.write(vimrc())
+    elif what == "tmux.conf":
+        sys.stdout.write(tmux_conf(terminal(pal)))
     elif what == "keys.ahk":
         for k, v in ahk_substitutions(desktop(pal)).items():
             print(f"{k}\t{v}")

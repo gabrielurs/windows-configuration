@@ -361,7 +361,8 @@ def apply_windhawk(pal: dict, snap: state.Snapshot, ctx, win_home, remove: bool 
     wanted = (windhawk.TASKBAR_MOD, windhawk.ICONSIZE_MOD, windhawk.START_MOD,
               windhawk.STARTPOS_MOD, windhawk.STARTICON_MOD, windhawk.BORDER_MOD,
               windhawk.CLOCK_MOD, windhawk.EXPLORER_MOD, windhawk.COLUMNS_MOD,
-              windhawk.NOTIF_MOD, windhawk.TRAY_MOD, windhawk.VOLUME_MOD)
+              windhawk.NOTIF_MOD, windhawk.TRAY_MOD, windhawk.VOLUME_MOD,
+              windhawk.MODERN_MOD)
     # El manifiesto y el código no pueden divergir en silencio: si añades un mod
     # aquí y olvidas su ficha, el que instale esto en otra máquina se queda sin
     # saber cómo se llama en el buscador.
@@ -416,6 +417,7 @@ def apply_windhawk(pal: dict, snap: state.Snapshot, ctx, win_home, remove: bool 
         windhawk.NOTIF_MOD:    windhawk.notification_settings,
         windhawk.TRAY_MOD:     windhawk.tray_settings,
         windhawk.VOLUME_MOD:   windhawk.volume_settings,
+        windhawk.MODERN_MOD:   windhawk.modern_settings,
     }
     blocks = {m: builders[m](pal) for m in wanted}
     # el del reloj venía apagado; sin esto no se carga

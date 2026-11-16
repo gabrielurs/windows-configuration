@@ -127,6 +127,185 @@ se aplican al reiniciar explorer**, no en caliente como los `controlStyles`. UI 
 no sirve para sacar clases: da la del *automation peer* (`ToggleButton`,
 `TaskListButtonAutomationPeer`), no la XAML.
 
+### Integración con Windows Terminal: medido en pty, sin ver en pantalla
+
+16 de noviembre. Conduciendo un zsh interactivo con `WT_SESSION` puesto, el prompt emite lo
+esperado: `133;A`/`133;B` alrededor del prompt, `133;C` al lanzar, `133;D;0` y `133;D;1`
+según el código, `133;D` a secas tras un Intro en vacío, y `9;9;\\wsl.localhost\Ubuntu\…`
+solo al cambiar de carpeta (también con Alt+↑, que no acepta línea). Con `TMUX` o sin
+`WT_SESSION`, nada.
+
+**Visto en una ventana de verdad** (16 de noviembre, ventana propia `sonda-claude`, teclas
+con `SendKeys` solo si esa ventana tenía el foco, capturas con `PrintWindow`):
+
+- `Ctrl+Mayús+O` + `Ctrl+C` copia la salida del último comando (`MARCA-UNO`).
+- `Ctrl+↑` salta **una** vez por prompt —el `A B A B` del doble pintado no duplica marcas—
+  y `Ctrl+↓` vuelve.
+- Duplicar panel NO heredaba la carpeta: el perfil que trae WSL (fragmento
+  `Fragments\Microsoft.WSL\{guid}.json`) arranca con `wsl.exe --distribution-id … --cd ~`,
+  y ese `--cd ~` manda sobre el cwd. `apply_wt` lo sobrescribe sin él y con
+  `startingDirectory: "~"`. Después: pestaña nueva en `/home/it`, panel duplicado tras
+  `cd /usr/share` en `/usr/share`.
+- tmux al abrir: la pestaña entra sola (sesión nueva, `attached=1`,
+  `destroy-unattached=on`, cliente con RGB). Dentro, conducido con `tmux send-keys`: prompt en
+  color de 24 bits, `✗1`, cronómetro, Alt+↑, la tira al pulsar Esc, fzf-tab con su vista
+  previa, Ctrl+R, eza con iconos, y la barra del cursor en INSERT (en captura).
+
+Trampas de la sonda, para no repetirlas: un `{ESC}` deja zsh en NORMAL y lo siguiente que
+se teclea son órdenes de vim; `-p` con el guid del perfil **oculto** `{2c4de342…}` abre
+`cmd`, no Ubuntu; y cerrar ventanas **por título** es peligroso —el título cambia a
+«Ubuntu» al enfocar otro panel, y así se llama cualquier ventana del usuario—: por `hwnd`.
+
+**Trampa del auto-test:** `clean_pty` quitaba los OSC de un solo dígito. Con las marcas
+(OSC 133) dentro, la sonda leía `]133;C` como datos y daba 32 fallos que no eran de la
+shell. Si el auto-test se hunde entero tras tocar el prompt, mirar primero el limpiador.
+
+**El cursor por modo ya existía** (`_claude_keys_cursor`, DECSCUSR 6 en INSERT y 2 en
+NORMAL; comprobado en pty). Dentro de tmux no pasaba —el terminfo de `xterm-256color` no
+trae `Ss`/`Se`—; el `tmux.conf` generado lo arregla con un `terminal-overrides`.
+
+Sin tocar: `defaultProfile` apunta al perfil Ubuntu **oculto** (`{2c4de342…}`, origen
+`Windows.Terminal.Wsl`); el visible es `{c6ccfc00…}` (origen `Microsoft.WSL`). Funciona,
+pero el que se abre al arrancar no es el que sale en el menú.
+
+### La barra a 36 px: lo que costó
+
+16 de noviembre, medido sobre capturas del rectángulo de `Shell_TrayWnd`:
+
+- A 36 px con el icono a 20, los botones de aplicación quedan centrados solos, pero **la
+  bandeja entera sale 7 px alta**: flecha, iconos y reloj. Con dos líneas, la de arriba se
+  cortaba contra el borde.
+- `Margin` sobre `Grid#SystemTrayFrameGrid` **no movió nada**. Lo que funcionó:
+  `RenderTransform:=<TranslateTransform Y="7" />` sobre `SystemTray.SystemTrayFrame`. Tinta
+  del reloj tras el cambio: filas 13 a 22 de 36.
+- El reloj en una línea: `BottomLine` vacío y `TextBlock#DateInnerTextBlock` con
+  `Visibility=Collapsed`.
+- cpu · ram · rama a la izquierda: el mod del reloj no puede pintar fuera del reloj. Es un
+  `Gui` de AutoHotkey (`ClaudeStats`) con `WS_EX_NOACTIVATE | WS_EX_TRANSPARENT`, recolocado
+  y devuelto a «siempre encima» cada 2 s —la barra se le pone delante cada vez que se
+  activa—, y escondido con una ventana a pantalla completa. Sin probar: pantalla completa
+  de verdad, y un segundo monitor.
+
+**Los reinicios del shell al importar no son sistemáticos.** Tres importaciones seguidas de
+«El shell se detuvo inesperadamente» (12:54, 14:21, 14:27) y luego tres sin él (14:33,
+14:34, 14:35). Las tres primeras cambiaban el mod nuevo, el contenedor del Explorador y el
+alto de la barra; las otras, solo estilos. Hipótesis, sin comprobar: lo provoca cambiar
+algo estructural, no el import en sí. Quedan además seis `explorer.exe` de las 9:48 sin
+ventana, a ~125 MB cada uno.
+
+### La cabecera de las ventanas: qué se pudo bajar y qué no
+
+16 de noviembre, medido con `PrintWindow` sobre ventanas propias:
+
+```
+Explorador        136 → 87 px hasta la lista   sin barra de comandos (tema NoCommandBar del mod)
+ventana clásica    39 → 35 px no cliente        iCaptionHeight 22 → 18 (SPI_SETNONCLIENTMETRICS)
+Windows Terminal   40 px de pestañas, fijos     o nada, con Alt+F11
+```
+
+`explorerFrameContainerHeight` es un AJUSTE del styler, no solo un campo de sus temas: sin
+ponerlo a 87 queda el hueco de la barra. El borde (`iPaddedBorderWidth`) no se tocó: es la
+zona de agarre para redimensionar. Chrome, VS Code, Slack o Configuración pintan su propia
+cabecera y no hay ajuste global que les llegue.
+
+**Ojo:** un minuto después de importar el cambio del Explorador con una ventana suya
+abierta, el registro de eventos apuntó «El shell se detuvo inesperadamente y se reinició»
+(14:21:34) y esa ventana desapareció. El explorer de las 9:48 siguió vivo, una ventana
+nueva abrió bien y no se repitió en las pruebas siguientes; no se sabe si fue el cambio en
+caliente o la ventana de prueba. Si se repite al aplicar, aplicar sin ventanas abiertas.
+
+### La franja de pestañas: título y ancho, no alto
+
+16 de noviembre. De 7 pestañas del usuario, 4 se llamaban «Ubuntu»: el fragmento de WSL
+trae `suppressApplicationTitle: true`. Con `false`, `tabWidthMode: titleLength` y, en tmux,
+`set-titles` con `#{?#{==:#{pane_title},#{host}},#W,#T}`, la pestaña enseña (visto en
+captura y leído con `tmux display`): `~`, `claude-terminal-theme`,
+`claude-terminal-theme · lib`, `share`, `sleep 30`, `✳ Claude Code`.
+
+Dos detalles: oh-my-zsh dentro de tmux pone el NOMBRE DE VENTANA (`\ek…`), no el título
+del panel, y por eso la cadena cae a `#W` cuando `#T` sigue siendo el nombre del equipo; y
+`_claude_repo_track` va ahora el primero de los precmd, o el título iba un prompt por
+detrás de la carpeta.
+
+El alto no se puede tocar: la fila mide 40 px y no hay ajuste. `Alt+F11`
+(`toggleFocusMode`) la quita entera: medido, de 30 a 32 filas en la misma ventana.
+
+### Claude Code dentro de tmux baja a 256 colores, y se nota en la statusline
+
+Lo vio el usuario: «el fondo de claude (con el pet) en tmux no se ve bien». Medido con
+`tmux capture-pane -e`: dentro de tmux Claude Code mandaba `48;5;255` y `38;5;30` en vez
+de `48;2;243;243;243` y `38;2;3;122;108`. El gris 255 es `#EEEEEE`, y la banda de la
+statusline salía como una franja más oscura sobre el `#F3F3F3` (73.450 píxeles en la
+captura); los roles, en su vecino más cercano de la paleta de 256.
+
+No es tmux, es Claude Code: en su binario (2.1.325) está
+`if(env.CLAUDE_CODE_TMUX_TRUECOLOR)return; if(env.TMUX&&level>2)level=2`. El `tmux.conf`
+generado pone `set-environment -g CLAUDE_CODE_TMUX_TRUECOLOR 1` junto a la línea que
+garantiza el RGB. Después: `#F3F3F3` en toda la banda. Solo vale para paneles NUEVOS: una
+sesión de Claude ya abierta dentro de tmux sigue en 256 hasta relanzarla en otro panel.
+
+Trampa de la sonda: UI Automation a veces no devuelve una ventana de Windows Terminal
+recién creada (`FindAll` daba 3 de 5). `EnumWindows` sí; las capturas van ya por `hwnd`.
+
+### Segunda tanda del terminal (16 de noviembre): qué se vio y qué no
+
+Visto en captura de una ventana propia: btop, vim y man con la paleta; lazygit también,
+con los títulos de panel subidos de `border` a `ghost` porque en `#E5E5E5` no se leían.
+Conducido con `tmux send-keys -K` —que pasa por las tablas de teclas, no directo al
+panel—: `Ctrl+B %` y `Ctrl+B c` abren en la carpeta del panel, y en modo copia `v … y` deja
+la selección en el búfer. El timbre, en pty: uno con el umbral superado, ninguno por debajo.
+
+`Win+º` baja el desplegable (ventana nueva de 1936×519 pegada arriba, con Ubuntu y tmux
+dentro). **Sin confirmar:** que la segunda pulsación lo esconda —`IsWindowVisible` seguía
+en true dos segundos después, que puede ser la animación o el modo de ocultar— y que el
+icono parpadee de verdad en la barra con el timbre.
+
+`defaultProfile` apuntaba al Ubuntu que el fragmento de WSL oculta (`updates` + `hidden`):
+un perfil sin comando, o sea `cmd.exe`. Se vio abriendo una pestaña sin `-p`. `apply_wt`
+lo redirige al perfil del fragmento.
+
+### tmux al abrir pestaña: probado en pty, no en una pestaña de verdad
+
+16 de noviembre, `shell/claude-05-tmux.zsh`. Conduciendo un zsh interactivo: con
+`WT_SESSION` entra en tmux con `destroy-unattached on`, y al salir la shell de fuera termina
+y la sesión desaparece; bajo `CLAUDECODE`, fuera de Windows Terminal o con el interruptor en
+`off`, no arranca; y si tmux falla (probado sin tty: «open terminal failed») la shell sigue
+con todas las capas y lo dice. Arranque medido: 0,43 s frente a 0,36 s.
+
+Decidido por el usuario: la sesión muere con la pestaña. Consecuencia sabida: `orq up`
+desde una pestaña así cae en su rama «ya estoy en tmux» y el equipo de echo muere al
+cerrarla, en vez de sobrevivir en `orq-<carpeta>`.
+
+**Trampa:** el `tmux.conf` solo se lee al arrancar el SERVIDOR. Con uno ya vivo, una
+sesión nueva sale con la configuración vieja —se vio: `mouse off`, historial 2.000— hasta
+un `tmux source-file` o hasta que muera el servidor. Y `history-limit` solo vale para
+paneles nuevos.
+
+### El puntero: «Negro» no es negro moderno, y solo Configuración genera los cursores
+
+Medido el 16 de noviembre dibujando los cursores del sistema (`LoadCursor` + `DrawIconEx`):
+
+```
+Blanco         aero_*.cur / .ani, 136 KB          el de serie
+Negro          *_r.cur, 8 KB, esquema «Windows Black»   los de Windows 95; Hand queda vacío
+Personalizado  %LOCALAPPDATA%\Microsoft\Windows\Cursors\*_eoa.cur, 136 KB, CursorType=6
+```
+
+Solo «Personalizado» da un puntero oscuro con la forma moderna, y los `*_eoa.cur` los
+genera la página de Configuración: no hay API ni valor que lo dispare (la búsqueda tampoco
+dio una vía documentada). `lib/pointer.py` la conduce con UI Automation —patrones, no
+teclas—: pasa por «Blanco», escribe `CursorColor` (COLORREF, BGR) y elige «Personalizado»;
+elegir lo ya elegido no regenera. La vuelta atrás es `SPI_SETCURSORS` con el flag **2**:
+con 3 devuelve FALSE sin código de error. Coste del estilo: «ocupado» es un reloj de arena
+fijo —un .cur no se anima— y «prohibido» pierde el rojo.
+
+### El tema con nombre no puede ser el «actual» sin aplicarlo
+
+`Claude Light.theme` sale en la galería, pero «Tema actual» sigue en «Personalizado»:
+apuntar `CurrentTheme` a la copia no aguanta, Configuración lo devuelve a `Custom.theme`
+al abrir la página de Temas (medido). Aplicarlo de verdad reescribe fondo y colores; no
+se hace.
+
 ### Inicio abre Flow: para probarlo, tiempos de mano, no de máquina
 
 Win sola, Win+S y el clic en el botón de Inicio abren Flow (`claude-keys.ahk`, sección
@@ -302,6 +481,15 @@ lienzo Win32. La franja de pestañas sale `#E8E8E8` en PrintWindow; en pantalla 
 medir limpia (otras ventanas encima). Centro de notificaciones: fondo `#F3F3F3`, tarjetas
 `#F6F6F6`, texto `#1B1B1B`, ni rastro del oscuro. Flow: caja `#F3F3F3`, selección `#C8DDDB`.
 
+### Hover y pulsado de la barra: la sonda sintética no los dispara
+
+Segundo intento, 16 de noviembre, con ventana de prueba propia: `SetCursorPos` sobre su
+botón y captura a 1,6 s → ni un píxel distinto del reposo (`#F3F3F3`), y tampoco aparece
+la previsualización. Con `mouse_event` de botón abajo, el icono desaparece del hueco
+(parece el arrastre para reordenar) y no se ve fondo de pulsado. No distingue «no pinta»
+de «la sonda no llega»: **pasar el ratón y hacer clic con la mano**. Lo esperado por
+cálculo sobre `#F3F3F3`: hover `#E5E5E5`, activo `#D4E3E2`, pulsado `#C3DBD8`.
+
 ### Sección 08 — aplicado pero nadie lo ha visto
 
 La previsualización de la barra y el Alt+Tab. Los tres targets están en el registro y salen
@@ -420,7 +608,7 @@ curl -fsSL https://raw.githubusercontent.com/gabrielurs/windows-configuration/ma
 ./install.sh --dry-run
 
 # solo una parte — esto salta todo menos los mods de Windhawk
-python3 lib/apply_windows.py --skip font,wt,vscode,ps,accent,taskbar,wallpaper,menu,launcher,keys,icons
+python3 lib/apply_windows.py --skip font,wt,vscode,ps,accent,taskbar,wallpaper,pointer,menu,launcher,keys,icons,theme
 
 # volver al estado anterior a conocer este repo
 ./install.sh --uninstall

@@ -91,7 +91,7 @@ install_shell() {
 
   say "ficheros del tema"
   run mkdir -p "$CUSTOM/themes"
-  snap_files "$CUSTOM/claude-00-palette.zsh" "$CUSTOM/claude-10-colors.zsh" \
+  snap_files "$CUSTOM/claude-00-palette.zsh" "$CUSTOM/claude-05-tmux.zsh" "$CUSTOM/claude-10-colors.zsh" \
              "$CUSTOM/claude-20-shell.zsh" "$CUSTOM/claude-30-tools.zsh" \
              "$CUSTOM/claude-35-keymap.zsh" "$CUSTOM/claude-40-keys.zsh" \
              "$CUSTOM/themes/claude.zsh-theme" "$ZSHRC"
@@ -113,10 +113,67 @@ install_shell() {
       "$batbin" cache --build >/dev/null || warn "bat cache --build falló: bat seguirá con ansi"
     fi
   fi
+  # tmux, si está: sin configuración sale con su barra verde de serie. Solo
+  # aspecto, color de 24 bits, forma del cursor y escape-time; ni teclas ni
+  # índices. Si ya hay un ~/.tmux.conf, tmux lee ese y este no estorba.
+  if command -v tmux >/dev/null; then
+    local tmuxconf="${XDG_CONFIG_HOME:-$HOME/.config}/tmux/tmux.conf"
+    snap_files "$tmuxconf"
+    step "tmux.conf (generado desde palette.json)"
+    if [[ $DRY -eq 0 ]]; then
+      mkdir -p "${tmuxconf%/*}"
+      python3 "$ROOT/lib/render.py" tmux.conf > "$tmuxconf"
+    fi
+    [[ -f $HOME/.tmux.conf ]] && warn "hay un ~/.tmux.conf: tmux lee ese y no el del tema"
+  fi
+  # btop, lazygit y vim: cada uno trae sus colores y no mira los del terminal.
+  local cfg="${XDG_CONFIG_HOME:-$HOME/.config}"
+  if command -v btop >/dev/null; then
+    snap_files "$cfg/btop/themes/claude.theme" "$cfg/btop/btop.conf"
+    step "btop: tema claude, sin fondo propio"
+    if [[ $DRY -eq 0 ]]; then
+      mkdir -p "$cfg/btop/themes"
+      python3 "$ROOT/lib/render.py" btop.theme > "$cfg/btop/themes/claude.theme"
+      if [[ -f $cfg/btop/btop.conf ]]; then
+        # btop reescribe su conf al salir: con él abierto, esto se perdería
+        pgrep -x btop >/dev/null && warn "btop está abierto: ciérralo y vuelve a lanzar esto"
+        sed -i -e 's/^color_theme = .*/color_theme = "claude"/' \
+               -e 's/^theme_background = .*/theme_background = False/' "$cfg/btop/btop.conf"
+      else
+        printf 'color_theme = "claude"\ntheme_background = False\ntruecolor = True\n' > "$cfg/btop/btop.conf"
+      fi
+    fi
+  fi
+  if command -v lazygit >/dev/null; then
+    # Solo si no hay config o es la nuestra: una escrita a mano no se pisa.
+    if [[ ! -f $cfg/lazygit/config.yml ]] || head -1 "$cfg/lazygit/config.yml" | grep -q '^# Generado por lib/render.py'; then
+      snap_files "$cfg/lazygit/config.yml"
+      step "lazygit: colores e iconos"
+      [[ $DRY -eq 1 ]] || { mkdir -p "$cfg/lazygit"; python3 "$ROOT/lib/render.py" lazygit.yml > "$cfg/lazygit/config.yml"; }
+    else
+      step "lazygit: ya tiene config propia, no la toco"
+    fi
+  fi
+  if command -v vim >/dev/null; then
+    snap_files "$HOME/.vim/colors/claude-light.vim" "$HOME/.vim/colors/claude-dark.vim"
+    step "vim: esquemas claude-light y claude-dark"
+    if [[ $DRY -eq 0 ]]; then
+      mkdir -p "$HOME/.vim/colors"
+      python3 "$ROOT/lib/render.py" vim-light > "$HOME/.vim/colors/claude-light.vim"
+      python3 "$ROOT/lib/render.py" vim-dark > "$HOME/.vim/colors/claude-dark.vim"
+    fi
+    if [[ ! -f $HOME/.vimrc ]] || head -1 "$HOME/.vimrc" | grep -q '^" Generado por claude-terminal-theme'; then
+      snap_files "$HOME/.vimrc"
+      step ".vimrc mínimo (color y cursor)"
+      [[ $DRY -eq 1 ]] || python3 "$ROOT/lib/render.py" vimrc > "$HOME/.vimrc"
+    else
+      step ".vimrc: ya hay uno; para usar el tema, \`colorscheme claude-light\`"
+    fi
+  fi
   # El número del nombre es el orden de carga: oh-my-zsh sourcea $ZSH_CUSTOM/*.zsh
   # alfabéticamente, así que 30 ve lo que definieron 00, 10 y 20.
   local layer
-  for layer in claude-10-colors claude-20-shell claude-30-tools claude-40-keys; do
+  for layer in claude-05-tmux claude-10-colors claude-20-shell claude-30-tools claude-40-keys; do
     step "$layer.zsh"
     run cp "$ROOT/shell/$layer.zsh" "$CUSTOM/$layer.zsh"
   done
