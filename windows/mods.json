@@ -1,73 +1,232 @@
 {
-  "_comment": "Los mods de Windhawk que pide el tema. El `id` es lo que va en la URL y en el registro; `name` es lo ÚNICO que encuentra el buscador de la pestaña Explore. Confundirlos cuesta un rato: buscar «taskbar-start-button-position» no da nada.",
-  "_catalogNote": "catalog:false = tiene página propia pero NO sale en el listado de windhawk.net ni en Explore. Se instala pegando su fuente en «Create new mod».",
+  "_comment": "Los mods de Windhawk que pide el tema, con la VERSIÓN FIJADA y la huella de cada fichero. El instalador los baja ya compilados de mods.windhawk.net —lo mismo que hace Windhawk al pulsar Install— y no instala nada cuya huella no coincida. `name` es lo único que encuentra el buscador de la pestaña Explore, por si hay que mirarlo a mano. Para subir de versión: instalar la nueva desde Windhawk, probarla y `python3 lib/mods.py pin`.",
   "mods": [
     {
       "id": "windows-11-taskbar-styler",
       "name": "Windows 11 Taskbar Styler",
-      "que": "forma y color de la barra"
+      "que": "forma y color de la barra",
+      "version": "1.8",
+      "architecture": [
+        "x86-64"
+      ],
+      "include": [
+        "explorer.exe"
+      ],
+      "exclude": [],
+      "sha256": {
+        "64": "ed7fcc0eeca5179a0d1b21853e833ea4e3cf9e9f463a71594442e759e9ccd8e6",
+        "source": "f6f977ba2a086eb9039e1f058a78c573ddc96891d8de3b9b389d732a8a7bedce"
+      }
     },
     {
       "id": "taskbar-icon-size",
       "name": "Taskbar height and icon size",
-      "que": "barra a 50px con el icono a 24px"
+      "que": "barra a 50px con el icono a 24px",
+      "version": "1.3.7",
+      "architecture": [
+        "x86-64"
+      ],
+      "include": [
+        "explorer.exe"
+      ],
+      "exclude": [],
+      "sha256": {
+        "64": "09eac830bc6380061647444f14630782ac8d487f19d66d554c05e3474190f704",
+        "source": "f8fc11864877b1ad8dd975d4514e28608aa60e5a4924efbab363acd54febbb57"
+      }
     },
     {
       "id": "windows-11-start-menu-styler",
       "name": "Windows 11 Start Menu Styler",
-      "que": "menú Inicio a juego"
+      "que": "menú Inicio a juego",
+      "version": "1.6",
+      "architecture": [
+        "x86-64"
+      ],
+      "include": [
+        "StartMenuExperienceHost.exe",
+        "SearchHost.exe",
+        "SearchApp.exe"
+      ],
+      "exclude": [],
+      "sha256": {
+        "64": "51cc9d1121f884c41ad6957a57ecc3e2a2c29732cd4473fcf33f88b42b6e59f7",
+        "source": "330194d0b20d9dddbfa77bbaa072529dc4ba9567d849f6a729158940949ab15b"
+      }
     },
     {
       "id": "taskbar-start-button-position",
       "name": "Start button always on the left",
-      "que": "Inicio a la izquierda, apps centradas"
+      "que": "Inicio a la izquierda, apps centradas",
+      "version": "1.3.2",
+      "architecture": [
+        "x86-64"
+      ],
+      "include": [
+        "StartMenuExperienceHost.exe",
+        "explorer.exe"
+      ],
+      "exclude": [],
+      "sha256": {
+        "64": "0cf50d86f5b7c8645a6fe49643a4c84d4e50a26a8351094e60b47e784596bb18",
+        "source": "273c6da6abfc035d86e297c2abf6b98cd53a9f25b3862a6b0da5490e434ff02b"
+      }
     },
     {
       "id": "start-button-replacer",
       "name": "Start Button Replacer",
       "que": "el chevron teal en el botón de Inicio",
-      "catalog": false,
-      "source": "https://raw.githubusercontent.com/ramensoftware/windhawk-mods/main/mods/start-button-replacer.wh.cpp"
+      "version": "0.12.4",
+      "architecture": [
+        "x86-64"
+      ],
+      "include": [
+        "explorer.exe"
+      ],
+      "exclude": [],
+      "sha256": {
+        "64": "24e9bee18420c2e468715285524ec2f87ed8c3f6b0d8e3a816d3e1bf1665214a",
+        "source": "dd25533e27c5d3ecc13e1089901ce84c9d5f3c6968d1184c21f921ee200c661d"
+      }
     },
     {
       "id": "win11-accent-border",
       "name": "Windows 11 Accent Window Border",
-      "que": "borde teal en la ventana activa"
+      "que": "borde teal en la ventana activa",
+      "version": "1.0.4",
+      "architecture": [],
+      "include": [
+        "*"
+      ],
+      "exclude": [
+        "devenv.exe"
+      ],
+      "sha256": {
+        "32": "c6f58aea9f49afb5256c82590a3424c41d39ff52719eef73f5c9b3ec6da616af",
+        "64": "f8a4e050f76884cc0f2f47c9de01edbd51420308310828a9a9ac909aaa942689",
+        "source": "e91799c676b413d82ff9cdc93e994a6309cf6af0e8e8772dfb4942aae409c774"
+      }
     },
     {
       "id": "taskbar-clock-customization",
       "name": "Taskbar Clock Customization",
-      "que": "reloj de dos líneas con cpu/ram y la rama de git"
+      "que": "reloj de dos líneas con cpu/ram y la rama de git",
+      "version": "1.8",
+      "architecture": [
+        "x86-64"
+      ],
+      "include": [
+        "explorer.exe"
+      ],
+      "exclude": [],
+      "sha256": {
+        "64": "3fba5a43c05ee89b303f29534f606a590c301a45c22a5c106caa9864cd7e2d33",
+        "source": "9887ff5b502d868eb8a3c3ad8dd07925b7e65a4eb5dbe7ccb5d32ed61c44b789"
+      }
     },
     {
       "id": "windows-11-file-explorer-styler",
       "name": "Windows 11 File Explorer Styler",
-      "que": "grises del Explorador"
+      "que": "grises del Explorador",
+      "version": "1.6",
+      "architecture": [
+        "x86-64"
+      ],
+      "include": [
+        "explorer.exe"
+      ],
+      "exclude": [],
+      "sha256": {
+        "64": "b9e8312c3b4c98e310b38bce97d02c6b9717546988ae74c8fd0863bae098cccf",
+        "source": "89044f86dd9ba06cf750075fe3dd27d5ea4b2c0602f3863c8dcda4d43b46c336"
+      }
     },
     {
       "id": "explorer-force-details-columns",
       "name": "Explorer Details View Columns",
-      "que": "las cuatro columnas del diseño"
+      "que": "las cuatro columnas del diseño",
+      "version": "1.4",
+      "architecture": [],
+      "include": [
+        "explorer.exe"
+      ],
+      "exclude": [],
+      "sha256": {
+        "32": "f3a2a198defae0293cb1c86e0830af8ddc86a3ff52e23b84d4e3336a8d9587e6",
+        "64": "3bef43d90f671fbdb715cc955a90a838375e621c4fd387d515b03002ae5bb80a",
+        "source": "8b0d206a95389ef2f35f064bcd31cf60e04ab64fbdf5bc384b83f5fa0ff2d937"
+      }
     },
     {
       "id": "windows-11-notification-center-styler",
       "name": "Windows 11 Notification Center Styler",
-      "que": "centro de notificaciones"
+      "que": "centro de notificaciones",
+      "version": "1.6",
+      "architecture": [
+        "x86-64"
+      ],
+      "include": [
+        "ShellExperienceHost.exe",
+        "ShellHost.exe"
+      ],
+      "exclude": [],
+      "sha256": {
+        "64": "a73056071b8346e363624b5fff776799428d757b0a6357ea9cd2a4d2e5e67159",
+        "source": "5874c2d79521b4ce11c8ff7aed33040b0e71e960feec4aa888cf34719f9afe50"
+      }
     },
     {
       "id": "taskbar-tray-system-icon-tweaks",
       "name": "Taskbar tray system icon tweaks",
-      "que": "bandeja sin red ni volumen, campana solo con avisos"
+      "que": "bandeja sin red ni volumen, campana solo con avisos",
+      "version": "1.3.1",
+      "architecture": [
+        "x86-64"
+      ],
+      "include": [
+        "explorer.exe"
+      ],
+      "exclude": [],
+      "sha256": {
+        "64": "c302a7f2a6ac8eba4651e632f17a23f72007c9c55e238c32458d83cdc271e92d",
+        "source": "503d7e357166261f64fb44f9c1243d43ebe0abe697311926b6a00cdf0b20f7e9"
+      }
     },
     {
       "id": "taskbar-volume-control",
       "name": "Taskbar Volume Control",
-      "que": "la rueda sobre la barra cambia el volumen"
+      "que": "la rueda sobre la barra cambia el volumen",
+      "version": "1.3.1",
+      "architecture": [],
+      "include": [
+        "explorer.exe",
+        "ShellExperienceHost.exe",
+        "SndVol.exe"
+      ],
+      "exclude": [],
+      "sha256": {
+        "32": "0826e6b510a691ad09b70eaa4acdae15c811df6a3066bf23c1c239969639d4c0",
+        "64": "4dbfd932d93f8626183c30d94b81448ea7a6252b97a7460bddd51d8df6e85ddf",
+        "source": "8101289c27e08fc6748a44814762c12e4ddb1d01e4d771e3f13f5f22943619f7"
+      }
     },
     {
       "id": "win32-ui-modernizer",
       "name": "Win32 UI Modernizer",
-      "que": "controles Win32 antiguos (botones, casillas, barras de desplazamiento, menús, diálogos Abrir/Guardar) con aspecto WinUI"
+      "que": "controles Win32 antiguos (botones, casillas, barras de desplazamiento, menús, diálogos Abrir/Guardar) con aspecto WinUI",
+      "version": "1.0.4",
+      "architecture": [],
+      "include": [
+        "*"
+      ],
+      "exclude": [
+        "dwm.exe"
+      ],
+      "sha256": {
+        "32": "9d9c3861a7f25df6ea75322fca3bcaa1ab25c14373e14df866e76e8a96f08bb5",
+        "64": "3b4e91c9939881993303c39c666d37c33034d12dde6411020f05b6efb944feaf",
+        "source": "fb915273fd8968e20d6a46d5406646f157c77fdce90873b204de80a279143f65"
+      }
     }
   ]
 }

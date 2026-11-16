@@ -371,11 +371,22 @@ def apply_windhawk(pal: dict, snap: state.Snapshot, ctx, win_home, remove: bool 
         raise SystemExit("sin ficha en windows/mods.json: " + ", ".join(sin_ficha))
 
     missing = [m for m in wanted if not windhawk.installed(m)]
+    if missing and not remove:
+        # Los que falten se instalan: se bajan ya compilados del servidor de
+        # Windhawk, con la versión y la huella fijadas en windows/mods.json, y un
+        # solo UAC los deja en su sitio (lib/mods.py). Es lo que hace el botón
+        # «Install» de Windhawk, sin abrir Windhawk.
+        ctx.say(f"faltan {len(missing)} de {len(wanted)} mods: " + ", ".join(missing))
+        if ctx.dry:
+            ctx.say("se bajarían de mods.windhawk.net y se instalarían con un UAC")
+        else:
+            import mods
+            mods.install(missing, snap, ctx, win_home)
+        missing = [m for m in wanted if not windhawk.installed(m)]
     if missing:
-        # No se puede instalar un mod desde fuera: Windhawk los compila en local
-        # desde su interfaz y no expone CLI. Se configura lo que haya y se avisa
+        # Lo que no se pudo —sin red, huella distinta, UAC cancelado— se dice
         # con el nombre buscable, que es lo único que sirve en la pestaña Explore.
-        ctx.say(f"faltan {len(missing)} de {len(wanted)} mods; configuro el resto")
+        ctx.say(f"siguen faltando {len(missing)}; configuro el resto. A mano:")
         for line in windhawk.missing_report(missing):
             print(line)
     wanted = tuple(m for m in wanted if windhawk.installed(m))

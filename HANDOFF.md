@@ -623,9 +623,16 @@ AutoHotkey v2 se instala con winget y el instalador lo ofrece; el script se copi
 y arranca solo desde la clave `Run`. `--uninstall` lo para antes de borrar nada, por lo mismo
 que con Flow y con explorer.
 
-Los mods de Windhawk son el único paso manual — Windhawk los compila en local desde su
-interfaz y no expone CLI. El instalador detecta cuáles faltan y los lista con su nombre
-buscable y su URL.
+Los mods de Windhawk ya no son un paso manual (16 de noviembre): `lib/mods.py` los baja
+compilados de `mods.windhawk.net`, comprueba su huella contra `windows/mods.json` y los
+instala con un UAC. La vía sale de leer `installMod` en
+`UI\resources\app\extensions\windhawk\dist\extension.js`: Windhawk solo compila en local
+si se le pide. Probado quitando `explorer-force-details-columns` y dejando que el
+instalador lo repusiera: DLL nueva, huella igual a la ficha, cargada en explorer.
+
+Sin probar: una máquina donde Windhawk no se haya abierto nunca (las bibliotecas
+`libc++.whl`, `libunwind.whl` y `windhawk-mod-shim.dll` las copia su interfaz al arrancar;
+el script las pone si faltan, pero aquí ya estaban), y los trece mods de golpe.
 
 ## Un detalle que no está en el código
 

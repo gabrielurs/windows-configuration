@@ -953,6 +953,20 @@ def check_desktop_choices(r: Report, pal: dict) -> None:
     r.check("barra: estados por recurso (indicador y botón activo)",
             all(k in res for k in ("RunningIndicatorActiveBrush", "ShellTaskbarItemFillColorSecondaryBrush"))
             and not any("TaskListLabeledButtonPanel" in str(v) for v in tb.values()), res[:60])
+    # Los mods se instalan solos, y solo con versión y huella fijadas: una ficha
+    # sin ellas dejaría ese mod para instalar a mano sin que nadie lo notara
+    # hasta estrenar máquina.
+    import mods as modsmod
+    cat = windhawk.catalog()
+    flojos = [i for i, m in cat.items()
+              if not (m.get("version") and modsmod.subfolders(m)
+                      and all(re.fullmatch(r"[0-9a-f]{64}", h) for h in m["sha256"].values())
+                      and "source" in m["sha256"])]
+    r.check("mods: todos con versión y huella SHA-256 fijadas", not flojos, ", ".join(flojos))
+    ps = modsmod.script([cat["win11-accent-border"]], r"C:\x", {"win11-accent-border": "a.dll"})
+    r.check("mods: el script elevado deja las DLL de 32 y 64, el fuente y la clave",
+            all(s in ps for s in (r"Engine\Mods\32\a.dll", r"Engine\Mods\64\a.dll",
+                                  "win11-accent-border.wh.cpp", "LibraryFileName", "resultado.txt")), "script")
     # tmux: solo aspecto. Un base-index o un prefijo aquí rompería a quien abre
     # paneles por índice, y nadie lo vería hasta que fallase.
     conf = render.tmux_conf(render.terminal(pal))

@@ -422,25 +422,27 @@ Lo que sí viaja bien:
 - **ningún secreto en el repo**: el `GITHUB_TOKEN` de la capa de dotfiles se deriva
   de `gh auth token` en cada arranque en vez de guardarse
 
-### El único paso manual: los nueve mods
+### Los mods de Windhawk se instalan solos
 
-Windhawk compila los mods en local desde su interfaz y **no expone CLI**, así que no hay
-forma de instalarlos desde fuera. El instalador pone Windhawk con winget, detecta cuáles
-faltan y los lista — pero ponerlos son clics tuyos.
+Windhawk no tiene línea de comandos para instalar un mod, pero lo que hace su botón
+*Install* son cuatro pasos y se pueden hacer desde fuera: baja el mod **ya compilado** de
+`mods.windhawk.net/mods/<id>/<versión>_<32|64>.dll`, lo deja en
+`%ProgramData%\Windhawk\Engine\Mods`, guarda el fuente y escribe una clave en `HKLM` que su
+motor vigila. `lib/mods.py` hace eso mismo, con **un** aviso de UAC para todos los que
+falten. Comprobado: los mods instalados a mano en la máquina de origen eran idénticos,
+byte a byte, a los de esa URL.
 
-Ese listado no es un volcado de ids, y la razón importa: **la pestaña Explore de Windhawk
-busca por nombre, no por id**. Buscar `taskbar-start-button-position` no devuelve nada;
-el mod se llama *«Start button always on the left»*. Por eso `windows/mods.json` guarda
-las dos cosas, y el instalador imprime el nombre buscable, para qué sirve y la URL
-directa. Si añades un mod al código y olvidas su ficha, el instalador **falla en el
-sitio** en vez de dejar a la siguiente máquina adivinando.
+Lo que añade es lo que el botón no tenía: **versión y huella SHA-256 fijadas** en
+`windows/mods.json`. Un mod es código que se inyecta en `explorer.exe` —dos de ellos, en
+todos los procesos—, y el clic en *Install* era la única revisión humana. Automatizarlo
+sin fijar nada sería instalar a ciegas lo que el servidor sirva ese día; con la huella, si
+un fichero no es el que se probó, no se instala ninguno. Para subir un mod de versión:
+instalar la nueva desde Windhawk, probarla, y `python3 lib/mods.py pin`.
 
-Uno de los nueve, *Start Button Replacer*, **no aparece en el catálogo** de windhawk.net
-ni en Explore, aunque su página existe. Ese va por *Create new mod* pegando el fuente; el
-instalador te da la URL cruda. No lo vendorizo en el repo porque es GPL-3.0 y esto es MIT.
-
-Sin los mods, el resto se aplica igual: colores, acento, barra por registro, iconos,
-menú contextual y la rama de git. Lo que te falta es la forma y el color.
+Si no hay red, alguien cancela el UAC o una huella no cuadra, el instalador lo dice, sigue
+con el resto y lista lo que falta con su nombre buscable —la pestaña Explore busca por
+nombre, no por id— y su URL, para ponerlo a mano. Sin los mods, el resto se aplica igual:
+colores, acento, barra por registro, iconos, menú contextual y la rama de git.
 
 ### Lo que el instalador sí resuelve solo
 
