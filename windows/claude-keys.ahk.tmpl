@@ -30,6 +30,7 @@ START_FLOW   := @@START_FLOW@@
 FLOW_KEYS    := @@FLOW_KEYS@@
 STATS_ON     := @@STATS_ON@@
 STATS_X      := @@STATS_X@@
+STATS_ALL    := @@STATS_ALL@@
 STATS_URL    := "@@STATS_URL@@"
 STATS_BG     := "@@STATS_BG@@"
 STATS_FG     := "@@STATS_FG@@"
@@ -57,8 +58,8 @@ InitTray()
 ReadHints()
 SetTimer(ReadHints, 1000)
 InitHotkeys()
-StatsGui := 0, StatsMain := 0, StatsBranchCtl := 0
-StatsIdle := 0, StatsTotal := 0, StatsBranch := "", StatsTick := 0, StatsShown := false
+StatsBars := Map()
+StatsIdle := 0, StatsTotal := 0, StatsBranch := "", StatsTick := 0
 if (STATS_ON)
     InitStats()
 ; Si el script se va, que no deje una banda flotando por encima de todo.
@@ -573,44 +574,50 @@ OverStartButton() {
 ; cpu y ram salen de Windows (GetSystemTimes, GlobalMemoryStatusEx); la rama, del
 ; mismo servicio de loopback que usaba el reloj (lib/gitbranch.py).
 InitStats() {
-    global StatsGui, StatsMain, StatsBranchCtl, STATS_BG, STATS_FG, STATS_DIM, STATS_SIZE, FONT
-    StatsGui := Gui("-Caption +AlwaysOnTop +ToolWindow +E0x08000020 +Disabled", "ClaudeStats")
-    StatsGui.BackColor := STATS_BG
-    StatsGui.MarginX := 0, StatsGui.MarginY := 0
-    StatsGui.SetFont("s" STATS_SIZE, FONT)
-    probe := StatsGui.Add("Text", "x0 y0", StrRepeat("M", 20))
-    probe.GetPos(, , &pw, &ph)
-    cw := Max(1, Round(pw / 20))
-    probe.Visible := false
-    ; «cpu 100% · ram 100%» son 19 caracteres; la rama, hasta 20.
-    StatsMain := StatsGui.Add("Text", "x0 y0 w" (cw * 41) " h" ph " c" STATS_FG " Background" STATS_BG)
-    StatsGui.W := cw * 41, StatsGui.H := ph
     UpdateStats()
     SetTimer(UpdateStats, 2000)
 }
 
+; Una ventanita por barra: la principal (Shell_TrayWnd) y, si `taskbar.stats.
+; allMonitors` lo pide, la de cada pantalla más (Shell_SecondaryTrayWnd). Se
+; crean al ver la barra y se destruyen cuando la barra desaparece, así que
+; enchufar o quitar un monitor no pide recargar el script.
+NewStatsGui() {
+    global STATS_BG, STATS_FG, STATS_SIZE, FONT
+    g := Gui("-Caption +AlwaysOnTop +ToolWindow +E0x08000020 +Disabled", "ClaudeStats")
+    g.BackColor := STATS_BG
+    g.MarginX := 0, g.MarginY := 0
+    g.SetFont("s" STATS_SIZE, FONT)
+    probe := g.Add("Text", "x0 y0", StrRepeat("M", 20))
+    probe.GetPos(, , &pw, &ph)
+    cw := Max(1, Round(pw / 20))
+    probe.Visible := false
+    ; «cpu 100% · ram 100%» son 19 caracteres; la rama, hasta 20.
+    ctl := g.Add("Text", "x0 y0 w" (cw * 41) " h" ph " c" STATS_FG " Background" STATS_BG)
+    return {gui: g, ctl: ctl, w: cw * 41, h: ph, shown: false}
+}
+
 HideStats() {
-    global StatsGui
-    if StatsGui {
-        try StatsGui.Destroy()
-        StatsGui := 0
-    }
+    global StatsBars
+    for , s in StatsBars
+        try s.gui.Destroy()
+    StatsBars := Map()
+}
+
+StatsTaskbars() {
+    global STATS_ALL
+    bars := []
+    if (id := WinExist("ahk_class Shell_TrayWnd"))
+        bars.Push(id)
+    if (STATS_ALL)
+        for id in WinGetList("ahk_class Shell_SecondaryTrayWnd")
+            bars.Push(id)
+    return bars
 }
 
 UpdateStats(*) {
-    global StatsGui, StatsMain, StatsBranchCtl, StatsIdle, StatsTotal, StatsBranch, StatsTick, StatsShown
+    global StatsBars, StatsIdle, StatsTotal, StatsBranch, StatsTick
     global STATS_X, STATS_URL
-    if !StatsGui
-        return
-    ; Con una ventana a pantalla completa delante la barra no se ve, y esto, que
-    ; va siempre encima, se quedaría flotando sobre el vídeo o el juego.
-    if (!WinExist("ahk_class Shell_TrayWnd") || ForegroundIsFullscreen()) {
-        if StatsShown {
-            StatsGui.Hide()
-            StatsShown := false
-        }
-        return
-    }
     DllCall("GetSystemTimes", "int64*", &idle := 0, "int64*", &kern := 0, "int64*", &user := 0)
     total := kern + user                     ; el tiempo de kernel ya incluye el inactivo
     cpu := 0
@@ -638,31 +645,65 @@ UpdateStats(*) {
     ; Un solo texto, para que la rama vaya pegada a lo anterior mida lo que mida:
     ; en dos controles de ancho fijo quedaba un hueco cuando cpu o ram tenían
     ; una cifra. El color de la rama se pierde; se lee igual.
-    StatsMain.Text := Format("cpu {}% · ram {}%", Max(0, Min(100, cpu)), ram)
+    text := Format("cpu {}% · ram {}%", Max(0, Min(100, cpu)), ram)
         . ((StatsBranch = "") ? "" : " · " StatsBranch)
-    ; Sobre la barra, a la derecha de Inicio y centrada en su alto. Se recoloca
-    ; en cada vuelta: la barra cambia de alto y de pantalla sin avisar.
-    WinGetPos(&tx, &ty, &tw, &th, "ahk_class Shell_TrayWnd")
-    StatsGui.Show("NA x" (tx + STATS_X) " y" (ty + (th - StatsGui.H) // 2 + 1) " w" StatsGui.W " h" StatsGui.H)
-    StatsShown := true
-    ; La barra también es «siempre encima», y cada vez que se activa se pone
-    ; delante: hay que volver a pedirlo. -1 = HWND_TOPMOST; 0x13 = sin mover, sin
-    ; cambiar de tamaño y sin activar.
-    DllCall("SetWindowPos", "ptr", StatsGui.Hwnd, "ptr", -1, "int", 0, "int", 0, "int", 0, "int", 0, "uint", 0x13)
+
+    bars := StatsTaskbars()
+    alive := Map()
+    for id in bars
+        alive[id] := true
+    gone := []
+    for id, s in StatsBars
+        if !alive.Has(id)
+            gone.Push(id)
+    for id in gone {
+        try StatsBars[id].gui.Destroy()
+        StatsBars.Delete(id)
+    }
+    ; Con una ventana a pantalla completa delante la barra de ESA pantalla no se
+    ; ve, y esto, que va siempre encima, se quedaría flotando sobre el vídeo o
+    ; el juego. La de la otra pantalla sigue en su sitio.
+    fs := FullscreenMonitor()
+    for id in bars {
+        try {
+            if !StatsBars.Has(id)
+                StatsBars[id] := NewStatsGui()
+            s := StatsBars[id]
+            if (fs && MonitorFromWindow(id) = fs) {
+                if s.shown {
+                    s.gui.Hide()
+                    s.shown := false
+                }
+                continue
+            }
+            s.ctl.Text := text
+            ; Sobre la barra, a la derecha de Inicio y centrada en su alto. Se
+            ; recoloca en cada vuelta: la barra cambia de alto y de pantalla sin avisar.
+            WinGetPos(&tx, &ty, &tw, &th, "ahk_id " id)
+            s.gui.Show("NA x" (tx + STATS_X) " y" (ty + (th - s.h) // 2 + 1) " w" s.w " h" s.h)
+            s.shown := true
+            ; La barra también es «siempre encima», y cada vez que se activa se pone
+            ; delante: hay que volver a pedirlo. -1 = HWND_TOPMOST; 0x13 = sin mover,
+            ; sin cambiar de tamaño y sin activar.
+            DllCall("SetWindowPos", "ptr", s.gui.Hwnd, "ptr", -1, "int", 0, "int", 0, "int", 0, "int", 0, "uint", 0x13)
+        }
+    }
 }
 
-ForegroundIsFullscreen() {
+; El número de monitor que tapa entera la ventana activa, o 0.
+FullscreenMonitor() {
     try {
         id := WinExist("A")
         if !id
-            return false
+            return 0
         cls := WinGetClass("ahk_id " id)
-        if (cls = "Progman" || cls = "WorkerW" || cls = "Shell_TrayWnd")
-            return false
+        if (cls = "Progman" || cls = "WorkerW" || cls = "Shell_TrayWnd" || cls = "Shell_SecondaryTrayWnd")
+            return 0
         WinGetPos(&x, &y, &w, &h, "ahk_id " id)
-        MonitorGet(MonitorFromWindow(id), &ml, &mt, &mr, &mb)
-        return (x <= ml && y <= mt && x + w >= mr && y + h >= mb)
+        mon := MonitorFromWindow(id)
+        MonitorGet(mon, &ml, &mt, &mr, &mb)
+        return (x <= ml && y <= mt && x + w >= mr && y + h >= mb) ? mon : 0
     } catch {
-        return false
+        return 0
     }
 }

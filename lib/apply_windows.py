@@ -505,12 +505,23 @@ def build_steps(pal: dict | None, home) -> list[Step]:
 
     def font(ctx):    return apply_font(pal, home, ctx)
     def wt(ctx):      apply_wt(tpal, ctx);          return False
-    def vscode(ctx):  apply_vscode(pal, home, ctx); return False
+    def vscode(ctx):  apply_vscode(render.vscode(pal) if pal else pal, home, ctx); return False
     def ps(ctx):      apply_ps(tpal, home, ctx);    return False
 
     def accent(ctx):
         apply_accent(dpal, home, ctx)
         desktop.broadcast_colorchange(ctx)     # escribirlo no lo aplica; hay que avisar
+        return False
+
+    def console(ctx):
+        print("· consola clásica de Windows → registro HKCU")
+        for key, name, typ, data in render.console_values(tpal):
+            ctx.snap.capture_reg(key, name)
+            if not ctx.dry:
+                subprocess.run(["reg.exe", "add", key, "/v", name, "/t", typ, "/d", data, "/f"],
+                               capture_output=True, cwd="/mnt/c")
+        ctx.say("16 colores, fondo, texto, cursor y fuente (vale para las consolas que se abran a partir de ahora)")
+        ctx.note("consola clásica")
         return False
 
     def taskbar(ctx):
@@ -571,6 +582,7 @@ def build_steps(pal: dict | None, home) -> list[Step]:
         Step("wt",       "Windows Terminal",       wt),
         Step("vscode",   "VS Code",                vscode),
         Step("ps",       "PowerShell",             ps),
+        Step("console",  "consola clásica",        console),
         Step("accent",   "acento de Windows",      accent),
         Step("taskbar",  "barra de tareas",        taskbar),
         Step("wallpaper", "fondo y bloqueo",       wall),

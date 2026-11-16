@@ -168,6 +168,28 @@ Sin tocar: `defaultProfile` apunta al perfil Ubuntu **oculto** (`{2c4de342…}`,
 `Windows.Terminal.Wsl`); el visible es `{c6ccfc00…}` (origen `Microsoft.WSL`). Funciona,
 pero el que se abre al arrancar no es el que sale en el menú.
 
+### Auditoría de lo que quedaba fuera del tema (16 de noviembre)
+
+Paneles del sistema, medidos abriéndolos un instante y contando colores sin guardar la
+imagen: ajustes rápidos `#F3F3F3` 88 %, avisos y calendario 96 %, Inicio/búsqueda 87 %,
+Ejecutar en blanco y `#F3F3F3`. Brave, Edge y Thunderbird siguen al sistema.
+
+Lo que sí estaba fuera, y se arregló:
+
+- **VS Code.** El repo daba por hecho un workbench oscuro (Abyss) y le pintaba terminal y
+  panel en `#07090A`; el usuario lo tiene en «Visual Studio Light». Ahora hay `vscodeMode`.
+  Iban además dos colores escritos a mano para oscuro (`#0F1F24`, y la rampa honda del
+  acento en las coincidencias de búsqueda). Comprobado en `settings.json`, **no en
+  pantalla**: no se capturó VS Code por si tenía abierto un proyecto de cliente.
+- **Consola clásica (conhost).** `HKCU\Console`: tabla de 16 colores en el orden de
+  Windows —azul en el 1, rojo en el 4—, `DefaultBackground`/`DefaultForeground` y fuente.
+  Visto en captura con `conhost.exe powershell`: fondo `#F3F3F3`, colores de la paleta. Las
+  subclaves de PowerShell, que traían su azul de siempre, heredan el fondo nuevo.
+
+Sin tocar: la app Configuración (hay mod, `windows-11-settings-styler`), el primer perfil
+de Chrome (tema de extensión propio) y el segundo monitor —el escritorio mide 3000×1920—,
+cuya barra no se ha mirado y donde no sale la tira de AutoHotkey.
+
 ### La barra a 36 px: lo que costó
 
 16 de noviembre, medido sobre capturas del rectángulo de `Shell_TrayWnd`:
@@ -183,8 +205,11 @@ pero el que se abre al arrancar no es el que sale en el menú.
 - cpu · ram · rama a la izquierda: el mod del reloj no puede pintar fuera del reloj. Es un
   `Gui` de AutoHotkey (`ClaudeStats`) con `WS_EX_NOACTIVATE | WS_EX_TRANSPARENT`, recolocado
   y devuelto a «siempre encima» cada 2 s —la barra se le pone delante cada vez que se
-  activa—, y escondido con una ventana a pantalla completa. Sin probar: pantalla completa
-  de verdad, y un segundo monitor.
+  activa—, y escondido con una ventana a pantalla completa. Con `stats.allMonitors` hay
+  uno por barra (`Shell_TrayWnd` y cada `Shell_SecondaryTrayWnd`), creado al ver la barra y
+  destruido cuando desaparece; visto en captura en las dos pantallas (2026-11-16). El
+  escondido es por pantalla. Sin probar: pantalla completa de verdad, y enchufar o quitar
+  un monitor con el script en marcha.
 
 **Los reinicios del shell al importar no son sistemáticos.** Tres importaciones seguidas de
 «El shell se detuvo inesperadamente» (12:54, 14:21, 14:27) y luego tres sin él (14:33,

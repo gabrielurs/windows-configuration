@@ -363,8 +363,10 @@ def check_shell(r: Report, pal: dict) -> str:
     if shutil.which("bat") or shutil.which("batcat"):
         # El tema propio del modo de la shell; ansi solo si no está instalado.
         bat = shutil.which("bat") or shutil.which("batcat")
-        mode = ("light" if pal.get("terminalMode") == "light"
-                and os.environ.get("TERM_PROGRAM") != "vscode" else "dark")
+        # el modo del terminal que lanza la prueba: vscodeMode dentro de VS Code,
+        # terminalMode en el resto
+        which = "vscodeMode" if os.environ.get("TERM_PROGRAM") == "vscode" else "terminalMode"
+        mode = "light" if pal.get(which) == "light" else "dark"
         cfg = subprocess.run([bat, "--config-dir"], capture_output=True, text=True).stdout.strip()
         want = f"claude-{mode}" if pathlib.Path(cfg, "themes", f"claude-{mode}.tmTheme").exists() else "ansi"
         r.check(f"bat usa el tema del modo ({want})", f.get("bat_theme") == want,
@@ -746,8 +748,7 @@ def check_delta(r: Report, pal: dict) -> None:
     clean = re.sub(r"\x1b\[[0-9;]*m", "", clean)
     # La shell bajo pty elige paleta igual que una de verdad: oscura en VS Code,
     # la de terminalMode en el resto. Se espera la que le toca.
-    if os.environ.get("TERM_PROGRAM") != "vscode":
-        pal = render.terminal(pal)
+    pal = render.vscode(pal) if os.environ.get("TERM_PROGRAM") == "vscode" else render.terminal(pal)
     teal = pal["roles"]["teal"]["hex"].lower()
     plus = pal["surfaces"]["diffPlus"].lower()
     minus = pal["surfaces"]["diffMinus"].lower()
@@ -876,13 +877,27 @@ def check_light(r: Report, pal: dict) -> None:
     base = render.desktop(dict(pal, windowsMode="light"))["windowsAccent"]["base"]
     r.check("claro: borde activo >= 3:1 sobre blanco", _contrast(base, s["bg"]) >= 3,
             f"{base} {_contrast(base, s['bg']):.2f}")
-    # VS Code se queda oscuro, y zsh es el mismo dentro que fuera: la paleta de
-    # zsh tiene que llevar las dos ramas, y la de VS Code ser la oscura.
-    z = render.palette_zsh(dict(pal, terminalMode="light"))
+    # zsh es el mismo dentro de VS Code que fuera, y cada terminal tiene su modo:
+    # si difieren, la paleta de zsh lleva las dos ramas y la de VS Code es la
+    # suya; si coinciden, una sola y sin rama.
+    z = render.palette_zsh(dict(pal, terminalMode="light", vscodeMode="dark"))
     vs = z.split("then", 1)[-1].split("else", 1)[0]
-    r.check("claro: zsh en VS Code sigue oscuro",
+    r.check("zsh: con modos distintos, cada terminal su paleta",
             "TERM_PROGRAM == vscode" in z and f"CC_HEX_BG='{pal['surfaces']['bg']}'" in vs
             and f"CC_HEX_BG='{s['bg']}'" in z.split("else", 1)[-1])
+    z = render.palette_zsh(dict(pal, terminalMode="light", vscodeMode="light"))
+    r.check("zsh: con el mismo modo, una sola paleta",
+            "TERM_PROGRAM" not in z and "CC_MODE=light" in z and f"CC_HEX_BG='{s['bg']}'" in z)
+    vc = render.vscode_colors(render.vscode(dict(pal, vscodeMode="light")))
+    r.check("VS Code claro: terminal en el fondo claro y sin restos del oscuro",
+            vc["terminal.background"] == s["bg"] and "#0F1F24" not in vc.values()
+            and _contrast(d["surfaces"]["fg"], vc["terminal.findMatchHighlightBackground"]) >= 4.5,
+            vc["terminal.background"])
+    con = dict((n, v) for _, n, _, v in render.console_values(d))
+    r.check("consola clásica: tabla en orden de Windows (azul en el 1, rojo en el 4)",
+            con["ColorTable01"] == render.abgr(d["ansi"]["blue"], "00")
+            and con["ColorTable04"] == render.abgr(d["ansi"]["red"], "00")
+            and con["DefaultBackground"] == render.abgr(s["bg"], "00"), con["ColorTable01"])
     check_two_tones(r, pal)
     # Los colores de las insignias de modo (NORMAL, INSERT…) tienen que seguir a
     # la paleta del terminal y no llevar el hex escrito: así salió el NORMAL en el

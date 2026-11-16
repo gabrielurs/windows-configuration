@@ -44,6 +44,18 @@ def terminal(p: dict) -> dict:
     return _overlay(p, p.get("light", {}))
 
 
+def vscode(p: dict) -> dict:
+    """La paleta del terminal integrado de VS Code, con su interruptor
+    (`vscodeMode`). Existe porque VS Code es la única superficie que el repo no
+    tematiza entera: solo le pinta el terminal y el panel, así que tienen que ir a
+    juego con el workbench que el usuario tenga puesto, sea cual sea el modo del
+    resto. Con el workbench en claro y esto en oscuro, el terminal era un bloque
+    negro dentro de una ventana blanca (2026-11-16)."""
+    if p.get("vscodeMode", "dark") != "light":
+        return p
+    return _overlay(p, p.get("light", {}))
+
+
 # ── conversiones de color ─────────────────────────────────────────────
 def rgb(hex_: str) -> tuple[int, int, int]:
     h = hex_.lstrip("#")
@@ -82,19 +94,21 @@ def palette_zsh(p: dict) -> str:
         "# Cambia palette.json y vuelve a lanzar ./install.sh",
         "",
     ]
-    if p.get("terminalMode", "dark") != "light":
-        return "\n".join(head + _palette_zsh_vars(p)) + "\n"
-    # zsh es el mismo en Windows Terminal y en VS Code, pero VS Code se queda
-    # oscuro: los pasteles del claro sobre su fondo negro, o al revés, no se
-    # leen. La paleta se elige al arrancar la shell, por el terminal que la abre.
-    dark, light = _palette_zsh_vars(p), _palette_zsh_vars(terminal(p))
+    # zsh es el mismo en Windows Terminal y en el terminal de VS Code, pero cada
+    # uno tiene su modo (terminalMode, vscodeMode). Si coinciden, una paleta y
+    # ya; si no, van las dos y se elige al arrancar la shell por el terminal que
+    # la abre: los pasteles del oscuro sobre fondo claro, o al revés, no se leen.
+    wt_mode = "light" if p.get("terminalMode", "dark") == "light" else "dark"
+    vs_mode = "light" if p.get("vscodeMode", "dark") == "light" else "dark"
+    if wt_mode == vs_mode:
+        return "\n".join(head + [f"typeset -g CC_MODE={wt_mode}"] + _palette_zsh_vars(terminal(p))) + "\n"
     ind = lambda rows: ["  " + r if r else r for r in rows]
     return "\n".join(head + [
-        "# terminalMode=light: claro en Windows Terminal, oscuro en VS Code",
+        f"# terminalMode={wt_mode}, vscodeMode={vs_mode}",
         "if [[ $TERM_PROGRAM == vscode ]]; then",
-        "  typeset -g CC_MODE=dark", *ind(dark),
+        f"  typeset -g CC_MODE={vs_mode}", *ind(_palette_zsh_vars(vscode(p))),
         "else",
-        "  typeset -g CC_MODE=light", *ind(light),
+        f"  typeset -g CC_MODE={wt_mode}", *ind(_palette_zsh_vars(terminal(p))),
         "fi",
     ]) + "\n"
 
@@ -219,6 +233,7 @@ def wt_actions() -> tuple[list[dict], list[dict]]:
 
 def vscode_colors(p: dict) -> dict:
     s, a, r = p["surfaces"], p["ansi"], p["roles"]
+    light = contrast(s["fg"], "#FFFFFF") > contrast(s["fg"], "#000000")
     cap = lambda k: k[0].upper() + k[1:]
     out = {
         "terminal.background": s["bg"],
@@ -227,11 +242,35 @@ def vscode_colors(p: dict) -> dict:
         "terminal.selectionBackground": s["selection"],
         "terminalCursor.foreground": r["teal"]["hex"],
         "terminalCursor.background": s["bg"],
-        "terminal.inactiveSelectionBackground": "#0F1F24",
-        "terminal.findMatchBackground": p["windowsAccent"]["start"],
-        "terminal.findMatchHighlightBackground": p["windowsAccent"]["ramp"][5],
+        # La selección sin foco, a medio camino entre la selección y el fondo.
+        "terminal.inactiveSelectionBackground": mix(s["selection"], s["bg"], 0.5),
+        # La coincidencia de la búsqueda y las demás. En oscuro, los teal hondos
+        # de la rampa del acento; sobre fondo claro esos mismos tapan el texto, y
+        # van los dos escalones claros.
+        "terminal.findMatchBackground":
+            p["windowsAccent"]["ramp"][2] if light else p["windowsAccent"]["start"],
+        "terminal.findMatchHighlightBackground":
+            p["windowsAccent"]["ramp"][1] if light else p["windowsAccent"]["ramp"][5],
         "panel.background": s["bg"],
         "panel.border": s["border"],
+        # La barra de estado, que de serie es un bloque azul pegado a la barra de
+        # tareas: el mismo fondo y el mismo texto que ella. En los tres estados
+        # (con carpeta, sin carpeta, depurando), que cada uno trae su color.
+        "statusBar.background": s["bgAlt"],
+        "statusBar.foreground": s["fg"],
+        "statusBar.border": s["border"],
+        "statusBar.noFolderBackground": s["bgAlt"],
+        "statusBar.noFolderForeground": s["fg"],
+        "statusBar.debuggingBackground": s["bgAlt"],
+        "statusBar.debuggingForeground": s["fg"],
+        "statusBar.debuggingBorder": r["orange"]["hex"],
+        "statusBarItem.hoverBackground": s["border"],
+        "statusBarItem.hoverForeground": s["fg"],
+        # El indicador de remoto («WSL: Ubuntu»), lo único con acento.
+        "statusBarItem.remoteBackground": s["bgAlt"],
+        "statusBarItem.remoteForeground": r["teal"]["hex"],
+        "statusBarItem.remoteHoverBackground": s["border"],
+        "statusBarItem.remoteHoverForeground": r["teal"]["hex"],
     }
     for k, v in a.items():
         out[f"terminal.ansi{cap(k)}"] = v
@@ -417,6 +456,29 @@ def registry_values(p: dict) -> list[tuple[str, str, str, str]]:
     return out
 
 
+def console_values(p: dict) -> list[tuple[str, str, str, str]]:
+    """La consola clásica de Windows (conhost): la ventana que sale cuando algo
+    abre una consola sin pasar por Windows Terminal —un instalador, un script, un
+    acceso directo antiguo—. De serie es negra con letra de mapa de bits.
+
+    El orden de la tabla es el de Windows, no el de ANSI: azul y rojo van
+    cambiados, y cian y amarillo también. El fondo y el texto por defecto van
+    aparte (DefaultBackground/DefaultForeground): la consola solo sabe elegirlos
+    de entre los 16, y el fondo del tema no es ninguno de ellos."""
+    a, s = p["ansi"], p["surfaces"]
+    order = ("black", "blue", "green", "cyan", "red", "purple", "yellow", "white",
+             "brightBlack", "brightBlue", "brightGreen", "brightCyan",
+             "brightRed", "brightPurple", "brightYellow", "brightWhite")
+    C = r"HKCU\Console"
+    ref = lambda h: abgr(h, "00")            # COLORREF: 0x00BBGGRR
+    out = [(C, f"ColorTable{i:02d}", "REG_DWORD", ref(a[name])) for i, name in enumerate(order)]
+    out += [(C, "DefaultBackground", "REG_DWORD", ref(s["bg"])),
+            (C, "DefaultForeground", "REG_DWORD", ref(s["fg"])),
+            (C, "CursorColor", "REG_DWORD", ref(p["roles"]["teal"]["hex"])),
+            (C, "FaceName", "REG_SZ", "Cascadia Mono")]
+    return out
+
+
 def ps_substitutions(p: dict) -> dict[str, str]:
     """Placeholders @@NOMBRE@@ del perfil de PowerShell."""
     sub = {"FG": sgr(p["surfaces"]["fg"]), "SEL": sgr(p["surfaces"]["selection"], "bg")}
@@ -564,6 +626,7 @@ def ahk_substitutions(p: dict) -> dict[str, str]:
         # cpu · ram · rama a la izquierda de la barra (ver la plantilla)
         "STATS_ON":      "1" if p["windowsDesktop"]["taskbar"].get("stats", {}).get("show") else "0",
         "STATS_X":       str(int(p["windowsDesktop"]["taskbar"].get("stats", {}).get("x", 52))),
+        "STATS_ALL":     "1" if p["windowsDesktop"]["taskbar"].get("stats", {}).get("allMonitors") else "0",
         "STATS_URL":     f"http://127.0.0.1:{int(p['windowsDesktop'].get('gitBranch', {}).get('port', 8756))}/",
         "STATS_BG":      bare(s["bgAlt"]),
         "STATS_FG":      bare(s["fg"]),
@@ -785,9 +848,12 @@ def vim_colors(p: dict, name: str) -> str:
 VIMRC_MARK = '" Generado por claude-terminal-theme.'
 
 
-def vimrc() -> str:
+def vimrc(p: dict | None = None) -> str:
     """Un .vimrc mínimo, solo si no había ninguno: color y cursor. Nada de
     teclas ni de plugins; eso es de cada cual."""
+    p = p or {}
+    wt = "light" if p.get("terminalMode", "dark") == "light" else "dark"
+    vs = "light" if p.get("vscodeMode", "dark") == "light" else "dark"
     return "\n".join([
         VIMRC_MARK + " Quita esta línea y el instalador no lo vuelve a tocar.",
         "set nocompatible",
@@ -797,8 +863,8 @@ def vimrc() -> str:
         r'let &t_8f = "\<Esc>[38;2;%lu;%lu;%lum"',
         r'let &t_8b = "\<Esc>[48;2;%lu;%lu;%lum"',
         "set termguicolors",
-        '" claro en Windows Terminal, oscuro en VS Code: como el resto del tema',
-        "execute 'colorscheme claude-' . ($TERM_PROGRAM ==# 'vscode' ? 'dark' : 'light')",
+        '" el mismo modo que la shell en cada terminal (terminalMode, vscodeMode)',
+        f"execute 'colorscheme claude-' . ($TERM_PROGRAM ==# 'vscode' ? '{vs}' : '{wt}')",
         '" el cursor dice el modo, igual que en la shell: barra al insertar, bloque en normal',
         r'let &t_SI = "\<Esc>[6 q"',
         r'let &t_SR = "\<Esc>[4 q"',
@@ -817,7 +883,7 @@ if __name__ == "__main__":
     elif what == "scheme":
         json.dump(wt_scheme(terminal(pal)), sys.stdout, indent=2, ensure_ascii=False)
     elif what == "vscode":
-        json.dump(vscode_colors(pal), sys.stdout, indent=2, ensure_ascii=False)
+        json.dump(vscode_colors(vscode(pal)), sys.stdout, indent=2, ensure_ascii=False)
     elif what == "registry":
         for k, n, t, d in registry_values(desktop(pal)):
             print(f"{k}\t{n}\t{t}\t{d}")
@@ -841,7 +907,7 @@ if __name__ == "__main__":
         tp = terminal(dict(pal, terminalMode="light")) if mode == "light" else pal
         sys.stdout.write(vim_colors(tp, f"claude-{mode}"))
     elif what == "vimrc":
-        sys.stdout.write(vimrc())
+        sys.stdout.write(vimrc(pal))
     elif what == "tmux.conf":
         sys.stdout.write(tmux_conf(terminal(pal)))
     elif what == "keys.ahk":

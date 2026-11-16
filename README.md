@@ -198,10 +198,17 @@ prompts y el duplicar panel en la misma carpeta, que son del terminal; y para se
 con el ratón como antes, Mayús+arrastrar. `claude-tmux off` lo apaga desde la siguiente
 pestaña, sin reinstalar.
 
+**VS Code y la consola clásica** — a VS Code el repo solo le pinta el terminal integrado y
+el panel, así que tienen su propio interruptor, `vscodeMode`, para ir a juego con el tema
+que lleve el workbench (hoy claro). Y la consola clásica de Windows —la que abre un
+instalador o un script sin pasar por Windows Terminal— deja de ser negra: los 16 colores,
+el fondo, el texto, el cursor y la fuente salen de la paleta.
+
 **La barra de tareas, a 36 px** — icono a 20, hora y fecha en una sola línea a la derecha,
 y cpu · ram · rama de git a la izquierda, junto a Inicio. Lo de la izquierda no lo pinta
 la barra: el mod del reloj solo escribe en el reloj, así que es una ventana de AutoHotkey
-sin marco y transparente al ratón, encima (`taskbar.stats`). La bandeja se baja 7 px con
+sin marco y transparente al ratón, encima (`taskbar.stats`); con `allMonitors` sale también
+en la barra de las demás pantallas. La bandeja se baja 7 px con
 una traslación (`taskbar.trayOffset`) porque a esa altura Windows la deja descentrada.
 
 **La cabecera de las ventanas** — el Explorador pierde la barra de comandos

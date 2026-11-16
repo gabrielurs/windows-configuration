@@ -4,7 +4,9 @@
   "windowsMode": "light",
   "_windowsModeNote": "light | dark. El ESCRITORIO: barra, Inicio, notificaciones, Explorador, Flow, la banda de AutoHotkey, los iconos anclados, el acento y el modo de apps de Windows (AppsUseLightTheme / SystemUsesLightTheme, que el instalador escribe a juego). En light, el bloque `light` se superpone a esta paleta (lib/render.py:desktop). Cambiar de modo desde Configuración de Windows NO basta: los mods de Windhawk llevan los colores escritos y seguirían en el modo anterior. Se cambia aquí y se relanza ./install.sh --windows.",
   "terminalMode": "light",
-  "_terminalModeNote": "light | dark, independiente del escritorio. Windows Terminal (esquema y tema de ventana), PowerShell y zsh, con el mismo bloque `light` encima (lib/render.py:terminal). VS Code NO: su workbench es oscuro (Abyss) y su terminal se queda con la paleta oscura; y como zsh es el mismo dentro y fuera, claude-00-palette.zsh lleva las dos y elige por TERM_PROGRAM=vscode al arrancar. Una shell ya abierta no cambia: `exec zsh`. El tema de Claude Code va aparte, en su settings.json (custom:terminal o custom:terminal-light).",
+  "_terminalModeNote": "light | dark, independiente del escritorio. Windows Terminal (esquema y tema de ventana), PowerShell y zsh, con el mismo bloque `light` encima (lib/render.py:terminal). VS Code va aparte, con vscodeMode; como zsh es el mismo dentro y fuera, si los dos modos difieren claude-00-palette.zsh lleva las dos paletas y elige por TERM_PROGRAM=vscode al arrancar. Una shell ya abierta no cambia: `exec zsh`. El tema de Claude Code va aparte, en su settings.json (custom:terminal o custom:terminal-light).",
+  "vscodeMode": "light",
+  "_vscodeModeNote": "light | dark. Solo el terminal integrado y el panel de VS Code, que es lo unico que el repo le pinta: tiene que ir a juego con el tema que lleve su workbench. En light porque el workbench esta en «Visual Studio Light»; con esto en dark el terminal era un bloque negro dentro de una ventana blanca. zsh, bat y vim eligen paleta por TERM_PROGRAM al arrancar, igual que antes.",
   "notify": {
     "afterSeconds": 30,
     "_note": "Un comando que tarda mas que esto avisa al terminar: la shell manda el timbre y Windows Terminal hace parpadear su icono en la barra de tareas (bellStyle taskbar), que solo se ve con la ventana sin foco. Sin sonido. 0 o sin la clave: el timbre queda apagado del todo, como antes. Ojo: tambien avisa al salir de un programa que tuviste abierto mas de ese tiempo (vim, btop, una sesion de claude)."
@@ -305,7 +307,8 @@
         "show": true,
         "x": 60,
         "fontSize": 9,
-        "_note": "cpu, ram y la rama de git a la IZQUIERDA de la barra, junto a Inicio. El mod del reloj solo pinta en el reloj, asi que esto lo dibuja AutoHotkey: una ventana sin marco y transparente al raton encima de la barra (claude-keys.ahk). x = pixeles desde el borde izquierdo de la barra. Se esconde con una ventana a pantalla completa."
+        "allMonitors": true,
+        "_note": "cpu, ram y la rama de git a la IZQUIERDA de la barra, junto a Inicio. El mod del reloj solo pinta en el reloj, asi que esto lo dibuja AutoHotkey: una ventana sin marco y transparente al raton encima de la barra (claude-keys.ahk). x = pixeles desde el borde izquierdo de la barra. allMonitors = tambien en la barra de las demas pantallas, no solo en la principal. Se esconde, pantalla a pantalla, con una ventana a pantalla completa."
       },
       "height": 36,
       "trayOffset": 7,
