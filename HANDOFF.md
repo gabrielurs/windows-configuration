@@ -211,6 +211,26 @@ cuya barra no se ha mirado y donde no sale la tira de AutoHotkey.
   escondido es por pantalla. Sin probar: pantalla completa de verdad, y enchufar o quitar
   un monitor con el script en marcha.
 
+**Aviso de comando largo (2026-11-17).** `bellStyle: taskbar` solo dejaba la campana en la
+pestaña; el icono no parpadeaba. La barra SÍ sabe pintar el parpadeo (probado con
+`FlashWindowEx` sobre una ventana propia: fondo tostado y raya ocre). Ahora la shell deja
+`%LOCALAPPDATA%\claude-terminal-theme\notify` («tiempo<tab>comando») y `ReadNotify()` en
+`claude-keys.ahk` saca un `TrayTip` y llama a `FlashWindowEx` sobre las ventanas de Windows
+Terminal, solo si el terminal no está en primer plano. Visto: la nota se escribe y se
+consume, y el `TrayTip` sale. Sin ver: el camino entero con el terminal en segundo plano.
+
+**Reinicios del shell, lo medido el 2026-11-17.** El evento 1002 de Winlogon sale también
+cada vez que algo mata explorer a propósito: el 16 hubo dieciséis, trece de ellos por la
+mañana. De los tres de la tarde no hay evento 1000 ni 1001: explorer no cayó con fallo, salió
+o lo terminaron. Ningún mod instalado llama a `TerminateProcess` sobre explorer (el de la
+barra solo ofrece reiniciarlo con un diálogo). Hipótesis, sin probar: la recarga de un mod de
+la barra al cambiarle los ajustes hace salir a explorer.
+
+**`explorer.exe /factory,{75dff2b7-…} -Embedding` huérfanos.** Cada ventana del Explorador
+abierta con `explorer.exe <ruta>` deja uno, de ~125 MB, que no se va al cerrarla. Había
+nueve sin ventana; cerrados con `Stop-Process` sin tocar el shell (el que no lleva
+`/factory`).
+
 **Los reinicios del shell al importar no son sistemáticos.** Tres importaciones seguidas de
 «El shell se detuvo inesperadamente» (12:54, 14:21, 14:27) y luego tres sin él (14:33,
 14:34, 14:35). Las tres primeras cambiaban el mod nuevo, el contenedor del Explorador y el

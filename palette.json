@@ -9,7 +9,7 @@
   "_vscodeModeNote": "light | dark. Solo el terminal integrado y el panel de VS Code, que es lo unico que el repo le pinta: tiene que ir a juego con el tema que lleve su workbench. En light porque el workbench esta en «Visual Studio Light»; con esto en dark el terminal era un bloque negro dentro de una ventana blanca. zsh, bat y vim eligen paleta por TERM_PROGRAM al arrancar, igual que antes.",
   "notify": {
     "afterSeconds": 30,
-    "_note": "Un comando que tarda mas que esto avisa al terminar: la shell manda el timbre y Windows Terminal hace parpadear su icono en la barra de tareas (bellStyle taskbar), que solo se ve con la ventana sin foco. Sin sonido. 0 o sin la clave: el timbre queda apagado del todo, como antes. Ojo: tambien avisa al salir de un programa que tuviste abierto mas de ese tiempo (vim, btop, una sesion de claude)."
+    "_note": "Un comando que tarda mas que esto avisa al terminar: la shell manda el timbre (una campana en la pestana) y deja una nota que recoge claude-keys.ahk: si en ese momento estas en otra aplicacion, sale la notificacion de Windows con el comando y lo que tardo, y el icono del terminal parpadea en la barra. Con el terminal delante, solo la campana. Sin sonido. El parpadeo que promete bellStyle taskbar por si solo no llego nunca (2026-11-17). 0 o sin la clave: el timbre queda apagado del todo, como antes. Ojo: tambien avisa al salir de un programa que tuviste abierto mas de ese tiempo (vim, btop, una sesion de claude)."
   },
   "tmux": {
     "autostart": true,

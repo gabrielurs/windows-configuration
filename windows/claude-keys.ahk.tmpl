@@ -37,6 +37,7 @@ STATS_FG     := "@@STATS_FG@@"
 STATS_DIM    := "@@STATS_DIM@@"
 STATS_SIZE   := @@STATS_SIZE@@
 HINTFILE     := EnvGet("LOCALAPPDATA") "\claude-terminal-theme\hints"
+NOTIFYFILE   := EnvGet("LOCALAPPDATA") "\claude-terminal-theme\notify"
 ICON_IDLE    := A_ScriptDir "\keys-idle.ico"
 ICON_ACTIVE  := A_ScriptDir "\keys-active.ico"
 
@@ -57,6 +58,8 @@ FlashOff := 0
 InitTray()
 ReadHints()
 SetTimer(ReadHints, 1000)
+try FileDelete(NOTIFYFILE)      ; una nota de antes de arrancar ya no es noticia
+SetTimer(ReadNotify, 1000)
 InitHotkeys()
 StatsBars := Map()
 StatsIdle := 0, StatsTotal := 0, StatsBranch := "", StatsTick := 0
@@ -262,6 +265,31 @@ ReadHints(*) {
     HINTS := want
     if (MODE != "")
         ShowOSD(MODE)          ; se nota al momento, sin salir y volver a entrar
+}
+
+; ── «ha terminado» ────────────────────────────────────────────────────
+; La shell deja aquí una línea —«lo que tardó<tab>el comando»— cuando acaba
+; algo largo (palette.json → notify.afterSeconds). Con el terminal delante no se
+; hace nada: ya lo estás viendo, y la pestaña lleva su campana. En otra
+; aplicación: la notificación de Windows y el icono del terminal parpadeando.
+ReadNotify(*) {
+    global NOTIFYFILE
+    if !FileExist(NOTIFYFILE)
+        return
+    txt := ""
+    try txt := FileRead(NOTIFYFILE, "UTF-8")
+    try FileDelete(NOTIFYFILE)
+    part := StrSplit(Trim(txt, " `t`r`n"), "`t")
+    if (part.Length < 2 || WinActive("ahk_exe WindowsTerminal.exe"))
+        return
+    try TrayTip(part[2], "Terminado en " part[1], "Iconi Mute")
+    ; FLASHWINFO: cbSize, hwnd, flags, veces, intervalo. 14 = FLASHW_TRAY |
+    ; FLASHW_TIMERNOFG: el icono, hasta que la ventana pase a primer plano.
+    for hwnd in WinGetList("ahk_exe WindowsTerminal.exe") {
+        fi := Buffer(32, 0)
+        NumPut("uint", 32, fi, 0), NumPut("ptr", hwnd, fi, 8), NumPut("uint", 14, fi, 16)
+        DllCall("FlashWindowEx", "ptr", fi)
+    }
 }
 
 HideOSD() {

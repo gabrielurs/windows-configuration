@@ -24,7 +24,26 @@ ZSH_THEME_GIT_PROMPT_DIVERGED="%F{$CC_HEX_RED} ↕"
 
 # ── cronómetro del último comando (solo a partir de 2s) ───────────────
 zmodload zsh/datetime 2>/dev/null
-_claude_timer_start() { _claude_timer=$EPOCHREALTIME }
+_claude_timer_start() { _claude_timer=$EPOCHREALTIME; _claude_lastcmd=$1 }
+
+# El aviso de verdad. El timbre solo deja una campana en la pestaña: el parpadeo
+# del icono que promete `bellStyle taskbar` no llegó nunca en esta máquina
+# (2026-11-17). Así que además se deja una nota en la carpeta que ya sondea
+# claude-keys.ahk, y es AutoHotkey quien saca la notificación de Windows y hace
+# parpadear el icono —si en ese momento estás en otra aplicación; con el
+# terminal delante no molesta—. Un fichero y no un powershell.exe: cero procesos.
+_claude_notify() {
+  if [[ -z ${_claude_notify_dir+x} ]]; then
+    local -a hit=( /mnt/c/Users/*/AppData/Local/claude-terminal-theme(/Nom) )
+    typeset -g _claude_notify_dir=${hit[1]}
+  fi
+  [[ -n $_claude_notify_dir ]] || return 0
+  local cmd=${${_claude_lastcmd%%$'\n'*}[1,80]}
+  # Se escribe aparte y se renombra: AutoHotkey no lo lee a medias.
+  { print -r -- "$1"$'\t'"${cmd//$'\t'/ }" >| $_claude_notify_dir/notify.$$ &&
+    mv -f $_claude_notify_dir/notify.$$ $_claude_notify_dir/notify } 2>/dev/null
+  return 0
+}
 _claude_timer_stop() {
   _claude_elapsed=""
   [[ -z $_claude_timer ]] && return
@@ -33,12 +52,14 @@ _claude_timer_stop() {
   # Un comando largo avisa al acabar: el timbre, que Windows Terminal convierte
   # en un parpadeo del icono de la barra (bellStyle taskbar) y que solo se nota
   # si estabas en otra ventana. No suena. tmux lo deja pasar tal cual.
-  (( ${CC_BELL_SECS:-0} > 0 && d >= CC_BELL_SECS )) && printf '\a'
+  local long=0
+  (( ${CC_BELL_SECS:-0} > 0 && d >= CC_BELL_SECS )) && { long=1; printf '\a' }
   (( d < 2 )) && return
   if   (( d < 60 ));   then _claude_elapsed=$(printf '%.1fs' $d)
   elif (( d < 3600 )); then _claude_elapsed=$(printf '%dm%02ds' $((d/60)) $((d%60)))
   else                      _claude_elapsed=$(printf '%dh%02dm' $((d/3600)) $((d%3600/60)))
   fi
+  (( long )) && _claude_notify $_claude_elapsed
 }
 autoload -Uz add-zsh-hook
 add-zsh-hook preexec _claude_timer_start
